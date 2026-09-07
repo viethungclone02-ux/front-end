@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function Profile() {
+  const router = useRouter();
   const [profile, setProfile] = useState({
     fullName: 'Nguyễn Viết Hùng',
     mssv: '425000134',
@@ -13,8 +15,17 @@ export default function Profile() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    // Kiểm tra quyền đăng nhập: nếu chưa đăng nhập thì chuyển về /login
+    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!loggedIn) {
+      router.replace('/login');
+      return;
+    }
+    setIsAuthorized(true);
+
     const savedProfile = localStorage.getItem('student_profile');
     if (savedProfile) {
       try {
@@ -23,30 +34,48 @@ export default function Profile() {
         console.error('Lỗi khi đọc thông tin từ localStorage', e);
       }
     }
-  }, []);
+  }, [router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setSuccess(false);
 
-    // Lưu vào localStorage để đồng bộ với trang chủ
+    // Lưu vào localStorage để đồng bộ dữ liệu
     localStorage.setItem('student_profile', JSON.stringify(profile));
 
     setTimeout(() => {
       setIsLoading(false);
       setSuccess(true);
       alert('Cập nhật thông tin thành công!');
-    }, 1000);
+    }, 600);
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('currentUser');
+    alert('Đã đăng xuất!');
+    router.push('/login');
+  };
+
+  if (!isAuthorized) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-100 font-sans">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4 font-sans text-gray-800">
       <div className="w-full max-w-md bg-white rounded-xl shadow-md border border-gray-200 p-8 space-y-6">
-        {/* Tiêu đề */}
+        {/* Tiêu đề Trang Cá Nhân */}
         <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold text-gray-900">Thông Tin Cá Nhân</h2>
-          <p className="text-sm text-gray-500">Cập nhật thông tin tài khoản sinh viên của bạn</p>
+          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 font-bold text-2xl shadow-sm">
+            {profile.fullName ? profile.fullName.charAt(0) : 'U'}
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Trang Cá Nhân</h2>
+          <p className="text-sm text-gray-500">Thông tin tài khoản sinh viên</p>
         </div>
 
         {/* Thông báo thành công */}
@@ -142,20 +171,24 @@ export default function Profile() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? 'Đang lưu thay đổi...' : 'Lưu thay đổi'}
           </button>
         </form>
 
-        {/* Link chuyển hướng quay về trang chủ */}
+        {/* Điều hướng và Đăng xuất */}
         <div className="text-center text-sm text-gray-600 pt-2 flex justify-between items-center border-t border-gray-150 pt-4">
-          <Link href="/" className="text-blue-600 hover:underline font-medium">
-            Trang chủ
+          <Link href="/about" className="text-blue-600 hover:underline font-medium">
+            Giới thiệu bản thân
           </Link>
-          <Link href="/login" className="text-red-500 hover:underline font-medium">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="text-red-500 hover:text-red-700 font-medium cursor-pointer transition"
+          >
             Đăng xuất
-          </Link>
+          </button>
         </div>
       </div>
     </main>

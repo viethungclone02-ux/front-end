@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function Login() {
+    const router = useRouter();
     const [view, setView] = useState<'login' | 'change-password'>('login');
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     
     // Khởi tạo state cho Đổi Mật Khẩu
@@ -35,13 +37,15 @@ export default function Login() {
         setError('');
         setSuccessMsg('');
 
-        if (!email.includes('@')) {
-            setError('Email không hợp lệ. Vui lòng nhập lại.');
+        const trimmedUser = username.trim();
+
+        if (!trimmedUser) {
+            setError('Vui lòng nhập tên đăng nhập.');
             return;
         }
 
-        if (password.length < 6) {
-            setError('Mật khẩu phải chứa ít nhất 6 ký tự.');
+        if (!password) {
+            setError('Vui lòng nhập mật khẩu.');
             return;
         }
 
@@ -50,16 +54,31 @@ export default function Login() {
         setTimeout(() => {
             setIsLoading(false);
             
-            const savedEmail = localStorage.getItem('user_email') || 'hung@gmail.com';
-            const savedPassword = localStorage.getItem('user_password') || '123456';
+            const savedEmail = localStorage.getItem('user_email');
+            const savedUsername = localStorage.getItem('user_username');
+            const savedPassword = localStorage.getItem('user_password');
 
-            if (email !== savedEmail || password !== savedPassword) {
-                setError('Email hoặc mật khẩu không chính xác.');
+            // Kiểm tra thông tin đăng nhập: admin / 123 (mặc định theo yêu cầu)
+            const isAdmin = (trimmedUser.toLowerCase() === 'admin') && password === '123';
+
+            // Hoặc tài khoản đã đăng ký trong hệ thống
+            const isSavedUser = (
+                (savedUsername && trimmedUser.toLowerCase() === savedUsername.toLowerCase()) ||
+                (savedEmail && trimmedUser.toLowerCase() === savedEmail.toLowerCase())
+            ) && (savedPassword && password === savedPassword);
+
+            if (!isAdmin && !isSavedUser) {
+                setError('Tên đăng nhập hoặc mật khẩu không chính xác. (Gợi ý: admin / 123)');
                 return;
             }
 
-            alert(`Đăng nhập thành công với Email: ${email}`);
-        }, 1000);
+            // Lưu trạng thái đăng nhập
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('currentUser', trimmedUser);
+
+            alert('Đăng nhập thành công!');
+            router.push('/profile');
+        }, 500);
     };
 
     // Xử lý đổi mật khẩu
@@ -68,24 +87,31 @@ export default function Login() {
         setError('');
         setSuccessMsg('');
 
+        const trimmedUser = username.trim();
         const savedEmail = localStorage.getItem('user_email') || 'hung@gmail.com';
-        const savedPassword = localStorage.getItem('user_password') || '123456';
+        const savedUsername = localStorage.getItem('user_username') || 'admin';
+        const savedPassword = localStorage.getItem('user_password') || '123';
 
-        // 1. Kiểm tra khớp email của user hiện tại
-        if (email !== savedEmail) {
-            setError('Email này không tồn tại trong hệ thống.');
+        // 1. Kiểm tra tài khoản hợp lệ
+        const isUserValid = trimmedUser.toLowerCase() === 'admin' ||
+                            trimmedUser.toLowerCase() === savedUsername.toLowerCase() ||
+                            trimmedUser.toLowerCase() === savedEmail.toLowerCase();
+
+        if (!isUserValid) {
+            setError('Tên đăng nhập hoặc Email này không tồn tại trong hệ thống.');
             return;
         }
 
         // 2. Kiểm tra mật khẩu hiện tại
-        if (changePasswordData.currentPassword !== savedPassword) {
+        const currentValidPass = (trimmedUser.toLowerCase() === 'admin' && !localStorage.getItem('user_password')) ? '123' : savedPassword;
+        if (changePasswordData.currentPassword !== currentValidPass) {
             setError('Mật khẩu hiện tại không chính xác.');
             return;
         }
 
         // 3. Kiểm tra độ dài mật khẩu mới
-        if (changePasswordData.newPassword.length < 6) {
-            setError('Mật khẩu mới phải chứa ít nhất 6 ký tự.');
+        if (changePasswordData.newPassword.length < 3) {
+            setError('Mật khẩu mới phải chứa ít nhất 3 ký tự.');
             return;
         }
 
@@ -106,15 +132,15 @@ export default function Login() {
         setTimeout(() => {
             setIsLoading(false);
             localStorage.setItem('user_password', changePasswordData.newPassword);
-            setSuccessMsg('Đổi mật khẩu thành công! Hãy đăng nhập lại.');
+            setSuccessMsg('Đổi mật khẩu thành công! Hãy đăng nhập lại bằng mật khẩu mới.');
             setView('login');
-            setPassword(''); // Xóa mật khẩu cũ ở form đăng nhập
+            setPassword('');
             setChangePasswordData({
                 currentPassword: '',
                 newPassword: '',
                 confirmNewPassword: '',
             });
-        }, 1200);
+        }, 800);
     };
 
     return (
@@ -126,7 +152,10 @@ export default function Login() {
                         {/* Tiêu đề Đăng Nhập */}
                         <div className="text-center space-y-1">
                             <h2 className="text-2xl font-bold text-gray-900">Đăng Nhập</h2>
-                            <p className="text-sm text-gray-500">Vui lòng nhập thông tin tài khoản của bạn</p>
+                            <p className="text-sm text-gray-500">Vui lòng nhập tài khoản để vào trang cá nhân</p>
+                            <div className="inline-block mt-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs rounded-full">
+                                Tài khoản: <b>admin</b> | Mật khẩu: <b>123</b>
+                            </div>
                         </div>
 
                         {/* Thông báo */}
@@ -143,18 +172,18 @@ export default function Login() {
 
                         {/* Form đăng nhập */}
                         <form onSubmit={handleSubmitLogin} className="space-y-4">
-                            {/* Nhập Email */}
+                            {/* Nhập Tên đăng nhập */}
                             <div className="space-y-1">
-                                <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-                                    Email:
+                                <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
+                                    Tên đăng nhập:
                                 </label>
                                 <input
-                                    id="email"
-                                    type="email"
+                                    id="username"
+                                    type="text"
                                     required
-                                    placeholder="nhap-email@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Nhập tên đăng nhập (admin)"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
                                     disabled={isLoading}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
                                 />
@@ -179,7 +208,7 @@ export default function Login() {
                                         id="password"
                                         type={showLoginPass ? 'text' : 'password'}
                                         required
-                                        placeholder="••••••••"
+                                        placeholder="Nhập mật khẩu (123)"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         disabled={isLoading}
@@ -208,7 +237,7 @@ export default function Login() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50"
+                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50 cursor-pointer"
                             >
                                 {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
                             </button>
@@ -231,18 +260,18 @@ export default function Login() {
 
                         {/* Form đổi mật khẩu */}
                         <form onSubmit={handleSubmitChangePassword} className="space-y-4">
-                            {/* Nhập Email xác nhận */}
+                            {/* Nhập Tên đăng nhập hoặc Email xác nhận */}
                             <div className="space-y-1">
-                                <label htmlFor="confirmEmail" className="block text-sm font-semibold text-gray-700">
-                                    Email xác thực tài khoản:
+                                <label htmlFor="confirmAccount" className="block text-sm font-semibold text-gray-700">
+                                    Tên đăng nhập hoặc Email xác thực:
                                 </label>
                                 <input
-                                    id="confirmEmail"
-                                    type="email"
+                                    id="confirmAccount"
+                                    type="text"
                                     required
-                                    placeholder="nhap-email@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="admin hoặc email của bạn"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
                                     disabled={isLoading}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
                                 />
@@ -355,7 +384,7 @@ export default function Login() {
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50"
+                                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50 cursor-pointer"
                                 >
                                     {isLoading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
                                 </button>
@@ -363,7 +392,7 @@ export default function Login() {
                                     type="button"
                                     onClick={() => setView('login')}
                                     disabled={isLoading}
-                                    className="w-full py-2.5 border border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold rounded-lg transition duration-150 disabled:opacity-50"
+                                    className="w-full py-2.5 border border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold rounded-lg transition duration-150 disabled:opacity-50 cursor-pointer"
                                 >
                                     Hủy bỏ
                                 </button>

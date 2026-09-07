@@ -29,8 +29,8 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Mật khẩu phải chứa ít nhất 6 ký tự.');
+    if (password.length < 3) {
+      setError('Mật khẩu phải chứa ít nhất 3 ký tự.');
       return;
     }
 
@@ -42,6 +42,7 @@ export default function Register() {
     setIsLoading(true);
 
     // Lưu tài khoản đăng ký vào localStorage để đăng nhập & đổi mật khẩu thực tế
+    localStorage.setItem('user_username', name);
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_password', password);
 
@@ -51,7 +52,7 @@ export default function Register() {
       setSuccess(true);
       alert('Đăng ký tài khoản thành công! Nhấn OK để chuyển về trang đăng nhập.');
       router.push('/login');
-    }, 1500);
+    }, 1000);
   };
 
   return (

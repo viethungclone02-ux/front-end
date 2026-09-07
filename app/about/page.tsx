@@ -103,6 +103,23 @@ export default function About() {
                         color="#10b981"
                     />
                 </div>
+
+                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                    <Link
+                        href="/profile"
+                        style={{
+                            display: 'inline-block',
+                            padding: '0.75rem 1.5rem',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            fontWeight: '600',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                        }}
+                    >
+                        ← Quay lại Trang cá nhân
+                    </Link>
+                </div>
             </div>
         </main>
     );
