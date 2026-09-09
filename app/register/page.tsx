@@ -42,128 +42,155 @@ export default function Register() {
     setIsLoading(true);
 
     // Lưu tài khoản đăng ký vào localStorage để đăng nhập & đổi mật khẩu thực tế
-    localStorage.setItem('user_username', name);
-    localStorage.setItem('user_email', email);
+    localStorage.setItem('user_username', name.trim());
+    localStorage.setItem('user_email', email.trim());
     localStorage.setItem('user_password', password);
 
     // Giả lập gửi API đăng ký tài khoản
     setTimeout(() => {
       setIsLoading(false);
       setSuccess(true);
-      alert('Đăng ký tài khoản thành công! Nhấn OK để chuyển về trang đăng nhập.');
-      router.push('/login');
-    }, 1000);
+      setTimeout(() => {
+        router.push('/login');
+      }, 1000);
+    }, 800);
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4 font-sans text-gray-800">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-md border border-gray-200 p-8 space-y-6">
-        {/* Tiêu đề */}
-        <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold text-gray-900">Đăng Ký Tài Khoản</h2>
-          <p className="text-sm text-gray-500">Tạo tài khoản học tập của bạn</p>
+    <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-8 font-sans">
+      <div className="glass-panel flex w-full max-w-5xl overflow-hidden rounded-[38px] border border-white/80 shadow-[0_30px_80px_rgba(79,110,247,0.16)] bg-white/85">
+        {/* Cột Trái: Hero Banner theo giao diện qlpl-demo */}
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-600 to-violet-700 md:flex p-10 text-white">
+          <div className="pointer-events-none absolute -right-10 top-8 h-40 w-40 rounded-full border border-white/20"></div>
+          <div className="pointer-events-none absolute right-28 top-28 h-3 w-3 rounded-full bg-white/40"></div>
+          <div className="pointer-events-none absolute left-16 top-1/2 h-2 w-2 rounded-full bg-white/40"></div>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.12),transparent_40%)]"></div>
+
+          {/* Logo Brand */}
+          <div className="relative z-10 flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/50 bg-white/10 text-sm font-bold text-white shadow-sm">
+              ◎
+            </span>
+            <span className="text-sm font-semibold tracking-[0.22em] text-white/90">QLPL DEMO</span>
+          </div>
+
+          {/* Hero text */}
+          <div className="relative z-10 pb-16">
+            <p className="mb-2 text-sm text-white/80 font-medium">Join us today</p>
+            <h1 className="mb-4 text-4xl font-extrabold uppercase leading-tight tracking-tight text-white">
+              GET STARTED
+            </h1>
+            <div className="mb-4 h-1.5 w-14 rounded-full bg-white/80"></div>
+            <p className="max-w-sm text-sm leading-6 text-white/80 font-normal">
+              Đăng ký tài khoản để truy cập hệ thống phòng máy tính, gửi yêu cầu mượn thiết bị và quản lý lịch thực hành.
+            </p>
+          </div>
+
+          {/* Sóng SVG */}
+          <svg className="absolute bottom-0 left-0 w-full text-white/10" viewBox="0 0 500 120" preserveAspectRatio="none">
+            <path d="M0,40 C150,120 350,0 500,60 L500,120 L0,120 Z" fill="currentColor"></path>
+          </svg>
         </div>
 
-        {/* Thông báo lỗi */}
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
-            {error}
+        {/* Cột Phải: Form Đăng ký */}
+        <div className="flex w-full flex-col justify-center px-6 py-10 sm:px-12 md:w-1/2">
+          <div className="mx-auto w-full max-w-sm">
+            <div className="mb-6">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">ACCOUNT</p>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900">Đăng ký</h2>
+              <p className="mt-1 text-sm text-slate-500">Nhập thông tin bên dưới để tiếp tục.</p>
+            </div>
+
+            {/* Thông báo */}
+            {error && (
+              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">
+                Đăng ký tài khoản thành công! Đang chuyển hướng về đăng nhập...
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nguyễn Văn A"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isLoading || success}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="nhap-email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading || success}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Mật khẩu
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading || success}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Xác nhận mật khẩu
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading || success}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || success}
+                className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2"
+              >
+                {isLoading ? 'Đang tạo tài khoản...' : 'ĐĂNG KÝ'}
+              </button>
+            </form>
+
+            <div className="mt-8 border-t border-slate-200/70 pt-4 text-center text-xs text-slate-600">
+              Đã có tài khoản?{' '}
+              <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                Đăng nhập ngay
+              </Link>
+            </div>
           </div>
-        )}
-
-        {/* Thông báo thành công */}
-        {success && (
-          <div className="p-3 bg-green-50 border border-green-200 text-green-600 rounded-lg text-sm">
-            Đăng ký tài khoản thành công! Đang chuyển hướng về trang đăng nhập...
-          </div>
-        )}
-
-        {/* Form đăng ký */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nhập Họ và Tên */}
-          <div className="space-y-1">
-            <label htmlFor="name" className="block text-sm font-semibold text-gray-700">
-              Họ và tên:
-            </label>
-            <input
-              id="name"
-              type="text"
-              required
-              placeholder="Nguyễn Văn A"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isLoading || success}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
-            />
-          </div>
-
-          {/* Nhập Email */}
-          <div className="space-y-1">
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-              Email:
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              placeholder="nhap-email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading || success}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
-            />
-          </div>
-
-          {/* Nhập Mật khẩu */}
-          <div className="space-y-1">
-            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-              Mật khẩu:
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading || success}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
-            />
-          </div>
-
-          {/* Xác nhận Mật khẩu */}
-          <div className="space-y-1">
-            <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700">
-              Xác nhận mật khẩu:
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              required
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={isLoading || success}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 transition duration-150"
-            />
-          </div>
-
-          {/* Nút đăng ký */}
-          <button
-            type="submit"
-            disabled={isLoading || success}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg transition duration-150 disabled:opacity-50"
-          >
-            {isLoading ? 'Đang tạo tài khoản...' : 'Đăng ký'}
-          </button>
-        </form>
-
-        {/* Link chuyển sang đăng nhập */}
-        <div className="text-center text-sm text-gray-600 pt-2">
-          Đã có tài khoản?{' '}
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
-            Đăng nhập ngay
-          </Link>
         </div>
       </div>
     </main>

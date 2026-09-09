@@ -8,13 +8,13 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Nếu đã đăng nhập trước đó thì chuyển hướng thẳng vào trang cá nhân
+    // Nếu đã đăng nhập trước đó thì chuyển hướng thẳng vào hệ thống quản lý máy tính
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     if (isLoggedIn) {
-      router.replace('/profile');
+      router.replace('/computers');
     }
   }, [router]);
 
-  // Mặc định khi vào trang local thì hiển thị form đăng nhập
+  // Mặc định khi chưa đăng nhập thì hiển thị form đăng nhập
   return <Login />;
 }

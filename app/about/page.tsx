@@ -1,126 +1,104 @@
-// app/about/page.tsx
 'use client';
 
 import Link from 'next/link';
+import AppLayout from '../components/AppLayout';
 
 interface InfoCardProps {
-    title: string;
-    items: string[];
-    color: string;
+  title: string;
+  items: string[];
+  color: string;
+  icon: string;
 }
 
-function InfoCard({ title, items, color }: InfoCardProps) {
-    return (
-        <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            borderTop: `4px solid ${color}`,
-            transition: 'transform 0.2s ease-in-out',
-            cursor: 'default',
-        }}
-            onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.03)')}
-            onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-        >
-            <h2 style={{
-                fontSize: '1.25rem',
-                fontWeight: '600',
-                color: '#111827',
-                marginBottom: '1rem',
-                borderBottom: '1px solid #e5e7eb',
-                paddingBottom: '0.5rem'
-            }}>
-                {title}
-            </h2>
-            <ul style={{
-                listStyleType: 'disc',
-                listStylePosition: 'inside',
-                color: '#4b5563',
-                lineHeight: '1.6'
-            }}>
-                {items.map((item, index) => (
-                    <li key={index} style={{ marginBottom: '0.5rem' }}>{item}</li>
-                ))}
-            </ul>
-        </div>
-    );
+function InfoCard({ title, items, color, icon }: InfoCardProps) {
+  return (
+    <div
+      className="glass-panel rounded-[28px] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md duration-200"
+      style={{ borderTop: `4px solid ${color}` }}
+    >
+      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
+        <span className="text-xl">{icon}</span>
+        <h2 className="text-base font-bold text-slate-900">{title}</h2>
+      </div>
+      <ul className="space-y-2 text-xs text-slate-600 leading-relaxed list-disc list-inside">
+        {items.map((item, index) => (
+          <li key={index} className="pl-1">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export default function About() {
-    const soThich = [
-        'Lập trình Web (React, Next.js, Node.js)',
-        'Chơi game Đấu Trường Chân Lý (TFT)',
-    ];
+  const soThich = [
+    'Lập trình Web hiện đại (Next.js, React, Node.js, TailwindCSS)',
+    'Nghiên cứu kiến trúc hệ thống và trải nghiệm người dùng (UX/UI)',
+    'Chơi game Đấu Trường Chân Lý (TFT) và giải trí cùng bạn bè',
+    'Tìm hiểu các công nghệ AI và trợ lý phát triển phần mềm',
+  ];
 
-    const mucTieu = [
-        'Xây dựng một sản phẩm cá nhân hữu ích',
-    ];
+  const mucTieu = [
+    'Xây dựng hệ thống Quản lý phòng máy tính & thiết bị lab hoàn thiện',
+    'Nâng cao kỹ năng Fullstack Web Developer với TypeScript & React',
+    'Tạo ra các sản phẩm công nghệ có tính ứng dụng thực tiễn cao',
+  ];
 
-    return (
-        <main style={{
-            minHeight: '100vh',
-            backgroundColor: '#f3f4f6',
-            padding: '2rem',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-            color: '#1f2937'
-        }}>
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                <header style={{
-                    textAlign: 'center',
-                    marginBottom: '3rem',
-                    paddingBottom: '1rem',
-                    borderBottom: '2px solid #e5e7eb'
-                }}>
-                    <h1 style={{
-                        fontSize: '2.5rem',
-                        fontWeight: '800',
-                        color: '#111827',
-                        letterSpacing: '-0.025em',
-                        marginBottom: '0.5rem'
-                    }}>
-                        Giới Thiệu Bản Thân
-                    </h1>
-                    <p style={{ fontSize: '1.125rem', color: '#6b7280' }}>
-                        Chào mừng đến với trang cá nhân của tôi!
-                    </p>
-                </header>
+  return (
+    <AppLayout>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">About Me</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Giới Thiệu Bản Thân</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Chào mừng bạn đến với trang giới thiệu cá nhân và định hướng phát triển
+          </p>
+        </div>
 
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: '2rem',
-                    marginBottom: '3rem'
-                }}>
-                    <InfoCard
-                        title="Sở thích & Đam mê"
-                        items={soThich}
-                        color="#3b82f6"
-                    />
-                    <InfoCard
-                        title="Mục tiêu nghề nghiệp"
-                        items={mucTieu}
-                        color="#10b981"
-                    />
-                </div>
-
-                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-                    <Link
-                        href="/profile"
-                        style={{
-                            display: 'inline-block',
-                            padding: '0.75rem 1.5rem',
-                            backgroundColor: '#2563eb',
-                            color: 'white',
-                            fontWeight: '600',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                        }}
-                    >
-                        ← Quay lại Trang cá nhân
-                    </Link>
-                </div>
+        {/* Hero Card */}
+        <div className="glass-panel rounded-[28px] p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-4xl flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0 ring-4 ring-white/90">
+            H
+          </div>
+          <div className="text-center md:text-left space-y-2">
+            <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-200">
+              Sinh viên Công nghệ Thông tin
             </div>
-        </main>
-    );
+            <h2 className="text-xl font-bold text-slate-900">Nguyễn Viết Hùng</h2>
+            <p className="text-xs text-slate-600 leading-relaxed max-w-xl">
+              Đam mê lập trình giao diện hiện đại, tối ưu hóa trải nghiệm người dùng và xây dựng các hệ sinh thái phần mềm quản lý trực quan, tiện lợi.
+            </p>
+          </div>
+        </div>
+
+        {/* Info Cards Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <InfoCard
+            title="Sở thích & Đam mê"
+            items={soThich}
+            color="#3b82f6"
+            icon="🎯"
+          />
+          <InfoCard
+            title="Mục tiêu phát triển"
+            items={mucTieu}
+            color="#10b981"
+            icon="🚀"
+          />
+        </div>
+
+        {/* Action Link */}
+        <div className="text-center pt-4">
+          <Link
+            href="/computers"
+            className="ios-button-primary inline-flex items-center gap-2 px-6 py-3 text-xs font-semibold uppercase tracking-wider"
+          >
+            <span>← Quay lại Quản lý máy tính</span>
+          </Link>
+        </div>
+      </div>
+    </AppLayout>
+  );
 }
