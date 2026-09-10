@@ -28,17 +28,17 @@ export default function Register() {
     }
 
     if (phone.trim().length < 9) {
-      setError('Số điện thoại không hợp lệ.');
+      setError('Số điện thoại không hợp lệ (tối thiểu 9 số).');
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Email không hợp lệ. Vui lòng nhập lại.');
+    if (!email.includes('@') || !email.includes('.')) {
+      setError('Địa chỉ email không hợp lệ. Vui lòng nhập đúng định dạng.');
       return;
     }
 
     if (password.length < 6) {
-      setError('Mật khẩu Supabase phải chứa ít nhất 6 ký tự.');
+      setError('Mật khẩu phải chứa ít nhất 6 ký tự.');
       return;
     }
 
@@ -50,198 +50,200 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      // 2. Đăng ký tài khoản Auth trên Supabase
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedName = name.trim();
+      const trimmedPhone = phone.trim();
+
+      // 2. Đăng ký tài khoản Auth trên Supabase kèm user metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: trimmedEmail,
         password: password,
+        options: {
+          data: {
+            full_name: trimmedName,
+            phone: trimmedPhone,
+          },
+        },
       });
 
       if (authError) {
-        setError(authError.message);
+        if (authError.message.toLowerCase().includes('already registered')) {
+          setError('Email này đã được đăng ký tài khoản. Vui lòng sử dụng email khác hoặc Đăng nhập.');
+        } else {
+          setError(authError.message);
+        }
         setIsLoading(false);
         return;
       }
 
-      // 3. Lưu thông tin Họ tên và Số điện thoại vào bảng profiles
+      // 3. Lưu thông tin Họ tên và Số điện thoại vào bảng profiles trên Supabase
       if (authData.user) {
-        const { error: profileError } = await supabase.from('profiles').insert([
-          {
-            id: authData.user.id,
-            full_name: name.trim(),
-            phone: phone.trim(),
-          },
-        ]);
+        try {
+          const { error: profileError } = await supabase.from('profiles').upsert([
+            {
+              id: authData.user.id,
+              full_name: trimmedName,
+              phone: trimmedPhone,
+            },
+          ]);
 
-        if (profileError) {
-          setError('Lỗi lưu thông tin profile: ' + profileError.message);
-          setIsLoading(false);
-          return;
+          if (profileError) {
+            console.warn('Lỗi ghi bảng profiles:', profileError.message);
+          }
+        } catch (profileErr) {
+          console.warn('Exception ghi profiles:', profileErr);
         }
       }
+
+      // 4. Lưu dự phòng vào localStorage
+      localStorage.setItem(
+        'student_profile',
+        JSON.stringify({
+          fullName: trimmedName,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          studentId: 'SV-' + Math.floor(100000 + Math.random() * 900000),
+          role: 'Sinh viên',
+        })
+      );
+      localStorage.setItem('user_email', trimmedEmail);
+      localStorage.setItem('currentUser', trimmedName);
 
       setIsLoading(false);
       setSuccess(true);
 
-      // Chuyển hướng sang trang đăng nhập sau 1.5 giây
+      // Chuyển hướng sang trang đăng nhập sau 1.2 giây
       setTimeout(() => {
         router.push('/login');
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
-      setError('Đã xảy ra lỗi không xác định. Vui lòng thử lại.');
+      console.error(err);
+      setError('Đã xảy ra lỗi không xác định. Vui lòng kiểm tra lại kết nối mạng.');
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-8 font-sans">
-      <div className="glass-panel flex w-full max-w-5xl overflow-hidden rounded-[38px] border border-white/80 shadow-[0_30px_80px_rgba(79,110,247,0.16)] bg-white/85">
-        {/* Cột Trái: Hero Banner */}
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-600 to-violet-700 md:flex p-10 text-white">
-          <div className="pointer-events-none absolute -right-10 top-8 h-40 w-40 rounded-full border border-white/20"></div>
-          <div className="pointer-events-none absolute right-28 top-28 h-3 w-3 rounded-full bg-white/40"></div>
-          <div className="pointer-events-none absolute left-16 top-1/2 h-2 w-2 rounded-full bg-white/40"></div>
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.12),transparent_40%)]"></div>
-
-          {/* Logo Brand */}
-          <div className="relative z-10 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/50 bg-white/10 text-sm font-bold text-white shadow-sm">
-              ◎
-            </span>
-            <span className="text-sm font-semibold tracking-[0.22em] text-white/90">QLPL DEMO</span>
+    <main className="flex min-h-screen items-center justify-center px-4 py-10 font-sans">
+      <div className="glass-panel w-full max-w-md overflow-hidden rounded-[36px] border border-white/80 p-7 sm:p-9 shadow-[0_25px_60px_rgba(79,110,247,0.18)] bg-white/90">
+        {/* Brand Header Icon */}
+        <div className="flex justify-center mb-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-2xl text-white shadow-md shadow-indigo-500/25">
+            🏫
           </div>
-
-          {/* Hero text */}
-          <div className="relative z-10 pb-16">
-            <p className="mb-2 text-sm text-white/80 font-medium">Join us today</p>
-            <h1 className="mb-4 text-4xl font-extrabold uppercase leading-tight tracking-tight text-white">
-              GET STARTED
-            </h1>
-            <div className="mb-4 h-1.5 w-14 rounded-full bg-white/80"></div>
-            <p className="max-w-sm text-sm leading-6 text-white/80 font-normal">
-              Đăng ký tài khoản để truy cập hệ thống phòng máy tính, gửi yêu cầu mượn thiết bị và quản lý lịch thực hành.
-            </p>
-          </div>
-
-          {/* Sóng SVG */}
-          <svg className="absolute bottom-0 left-0 w-full text-white/10" viewBox="0 0 500 120" preserveAspectRatio="none">
-            <path d="M0,40 C150,120 350,0 500,60 L500,120 L0,120 Z" fill="currentColor"></path>
-          </svg>
         </div>
 
-        {/* Cột Phải: Form Đăng ký */}
-        <div className="flex w-full flex-col justify-center px-6 py-10 sm:px-12 md:w-1/2">
-          <div className="mx-auto w-full max-w-sm">
-            <div className="mb-6">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">ACCOUNT</p>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900">Đăng ký</h2>
-              <p className="mt-1 text-sm text-slate-500">Nhập thông tin bên dưới để tiếp tục.</p>
-            </div>
+        <div className="text-center mb-6">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.24em] text-blue-600">SMART ROOM</p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 mt-1">Đăng ký tài khoản</h2>
+          <p className="mt-1 text-xs text-slate-500">Điền thông tin bên dưới để khởi tạo tài khoản mới.</p>
+        </div>
 
-            {/* Thông báo */}
-            {error && (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">
-                Đăng ký tài khoản thành công! Đang chuyển hướng về đăng nhập...
-              </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Họ và tên
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nguyễn Văn A"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isLoading || success}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Số điện thoại
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="0912345678"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={isLoading || success}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="nhap-email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading || success}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Mật khẩu
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading || success}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Xác nhận mật khẩu
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading || success}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || success}
-                className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition shadow-md"
-              >
-                {isLoading ? 'Đang tạo tài khoản...' : 'ĐĂNG KÝ'}
-              </button>
-            </form>
-
-            <div className="mt-8 border-t border-slate-200/70 pt-4 text-center text-xs text-slate-600">
-              Đã có tài khoản?{' '}
-              <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                Đăng nhập ngay
-              </Link>
-            </div>
+        {/* Thông báo */}
+        {error && (
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-600 flex items-start gap-2">
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
+        )}
+        {success && (
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 flex items-center gap-2">
+            <span>✅</span>
+            <span>Đăng ký thành công! Đang chuyển hướng về Đăng nhập...</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Họ và tên <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Ví dụ: Nguyễn Văn An"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={isLoading || success}
+              className="w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Số điện thoại <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="tel"
+              required
+              placeholder="Ví dụ: 0912345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={isLoading || success}
+              className="w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Email đăng ký <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="user@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading || success}
+              className="w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Mật khẩu <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="Tối thiểu 6 ký tự"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading || success}
+              className="w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Xác nhận mật khẩu <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="Nhập lại mật khẩu"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isLoading || success}
+              className="w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || success}
+            className="ios-button-primary w-full py-3.5 px-4 text-sm font-bold uppercase tracking-wider disabled:opacity-50 mt-3 shadow-md"
+          >
+            {isLoading ? 'Đang tạo tài khoản Supabase...' : 'ĐĂNG KÝ TÀI KHOẢN'}
+          </button>
+        </form>
+
+        <div className="mt-6 border-t border-slate-200/70 pt-4 text-center text-xs font-medium text-slate-600">
+          Đã có tài khoản?{' '}
+          <Link href="/login" className="font-bold text-blue-600 hover:text-blue-700 hover:underline">
+            Đăng nhập ngay
+          </Link>
         </div>
       </div>
     </main>

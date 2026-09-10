@@ -8,10 +8,10 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Nếu đã đăng nhập trước đó thì chuyển hướng thẳng vào hệ thống quản lý máy tính
+    // Nếu đã đăng nhập trước đó thì chuyển hướng thẳng vào hệ thống quản lý & đặt phòng học
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     if (isLoggedIn) {
-      router.replace('/computers');
+      router.replace('/rooms');
     }
   }, [router]);
 

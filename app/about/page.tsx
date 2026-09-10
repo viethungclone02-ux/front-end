@@ -92,10 +92,10 @@ export default function About() {
         {/* Action Link */}
         <div className="text-center pt-4">
           <Link
-            href="/computers"
+            href="/rooms"
             className="ios-button-primary inline-flex items-center gap-2 px-6 py-3 text-xs font-semibold uppercase tracking-wider"
           >
-            <span>← Quay lại Quản lý máy tính</span>
+            <span>← Quay lại Danh sách phòng học</span>
           </Link>
         </div>
       </div>
