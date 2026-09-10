@@ -526,11 +526,10 @@ export default function ComputersPage() {
                     key={room}
                     type="button"
                     onClick={() => setSelectedRoom(room)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      selectedRoom === room
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${selectedRoom === room
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900'
+                      }`}
                   >
                     {room === 'all' ? 'Tất cả phòng' : room}
                   </button>
@@ -589,13 +588,12 @@ export default function ComputersPage() {
                         {/* Nhãn trạng thái & Hành động */}
                         <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                              isAvailable
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : isInUse
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isAvailable
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : isInUse
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-rose-100 text-rose-700'
-                            }`}
+                              }`}
                           >
                             {isAvailable ? '🟢 Có sẵn' : isInUse ? '🟡 Đang sử dụng' : '🔴 Bảo trì'}
                           </span>
@@ -617,13 +615,12 @@ export default function ComputersPage() {
                                 setBorrowForm({ ...borrowForm, computerId: pc.id });
                                 setBorrowMessage(null);
                               }}
-                              className={`rounded-xl px-3 py-1.5 text-xs font-semibold shadow-xs transition cursor-pointer ${
-                                borrowForm.computerId === pc.id
-                                  ? 'bg-emerald-600 text-white'
-                                  : isAvailable
+                              className={`rounded-xl px-3 py-1.5 text-xs font-semibold shadow-xs transition cursor-pointer ${borrowForm.computerId === pc.id
+                                ? 'bg-emerald-600 text-white'
+                                : isAvailable
                                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                              }`}
+                                }`}
                             >
                               {borrowForm.computerId === pc.id ? '✓ Đang chọn' : isAvailable ? 'Đăng ký mượn' : 'Bận'}
                             </button>
@@ -670,11 +667,10 @@ export default function ComputersPage() {
             {/* Thông báo gửi đơn mượn */}
             {borrowMessage && (
               <div
-                className={`rounded-2xl p-3 text-xs font-medium ${
-                  borrowMessage.type === 'success'
-                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border border-rose-200 bg-rose-50 text-rose-600'
-                }`}
+                className={`rounded-2xl p-3 text-xs font-medium ${borrowMessage.type === 'success'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border border-rose-200 bg-rose-50 text-rose-600'
+                  }`}
               >
                 {borrowMessage.text}
               </div>
@@ -785,23 +781,22 @@ export default function ComputersPage() {
                       <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{req.requestDate}</td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                            req.status === 'pending'
-                              ? 'bg-amber-100 text-amber-700'
-                              : req.status === 'approved'
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${req.status === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : req.status === 'approved'
                               ? 'bg-blue-100 text-blue-700'
                               : req.status === 'rejected'
-                              ? 'bg-rose-100 text-rose-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}
                         >
                           {req.status === 'pending'
                             ? 'Chờ duyệt'
                             : req.status === 'approved'
-                            ? 'Đã duyệt'
-                            : req.status === 'rejected'
-                            ? 'Từ chối'
-                            : 'Đã trả máy'}
+                              ? 'Đã duyệt'
+                              : req.status === 'rejected'
+                                ? 'Từ chối'
+                                : 'Đã trả máy'}
                         </span>
                       </td>
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -53,7 +54,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
     router.push('/login');
@@ -255,9 +261,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <div className="rounded-2xl border border-blue-200 bg-blue-50/90 p-3 text-xs text-blue-900 shadow-xs">
                   <div className="flex items-center gap-2 font-bold mb-1">
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                    <span>Vai trò: Sinh viên / Người dùng</span>
+                    <span>Vai trò: Người dùng cá nhân</span>
                   </div>
-                  <p className="text-[11px] text-blue-700">Xem máy tính phòng thực hành và gửi yêu cầu mượn máy.</p>
+                  <p className="text-[11px] text-blue-700">Xem danh sách máy tính và gửi yêu cầu đăng ký mượn máy.</p>
                 </div>
               )}
             </div>

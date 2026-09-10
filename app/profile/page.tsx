@@ -4,21 +4,18 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppLayout from '../components/AppLayout';
+import { supabase } from '@/lib/supabaseClient';
 
-interface StudentProfile {
+interface UserProfile {
   fullName: string;
-  mssv: string;
-  classId: string;
   email: string;
   phone: string;
 }
 
 export default function Profile() {
   const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile>({
+  const [profile, setProfile] = useState<UserProfile>({
     fullName: 'Nguyễn Viết Hùng',
-    mssv: '425000134',
-    classId: '25CT401',
     email: 'hung@gmail.com',
     phone: '0901234567',
   });
@@ -36,10 +33,15 @@ export default function Profile() {
     }
     setIsAuthorized(true);
 
-    const savedProfile = localStorage.getItem('student_profile');
+    const savedProfile = localStorage.getItem('user_profile') || localStorage.getItem('student_profile');
     if (savedProfile) {
       try {
-        setProfile(JSON.parse(savedProfile));
+        const parsed = JSON.parse(savedProfile);
+        setProfile({
+          fullName: parsed.fullName || 'Nguyễn Viết Hùng',
+          email: parsed.email || 'hung@gmail.com',
+          phone: parsed.phone || '0901234567',
+        });
       } catch (e) {
         console.error('Lỗi khi đọc thông tin từ localStorage', e);
       }
@@ -70,7 +72,9 @@ export default function Profile() {
     setSuccess(false);
 
     // Lưu vào localStorage để đồng bộ dữ liệu
+    localStorage.setItem('user_profile', JSON.stringify(profile));
     localStorage.setItem('student_profile', JSON.stringify(profile));
+    localStorage.setItem('currentUser', profile.fullName);
 
     setTimeout(() => {
       setIsLoading(false);
@@ -79,7 +83,12 @@ export default function Profile() {
     }, 400);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
     router.push('/login');
@@ -102,18 +111,18 @@ export default function Profile() {
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Account</p>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Hồ sơ cá nhân</h1>
-          <p className="mt-1 text-sm text-slate-600">Quản lý và cập nhật thông tin tài khoản sinh viên</p>
+          <p className="mt-1 text-sm text-slate-600">Quản lý và cập nhật thông tin cá nhân của bạn</p>
         </div>
 
         {/* Thông báo cập nhật */}
         {success && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs font-semibold text-emerald-800 shadow-xs animate-in fade-in">
-            ✓ Cập nhật thông tin sinh viên thành công!
+            ✓ Cập nhật thông tin cá nhân thành công!
           </div>
         )}
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Cột Trái: Thẻ Tóm tắt Sinh viên */}
+          {/* Cột Trái: Thẻ Tóm tắt Thông tin cá nhân */}
           <div className="glass-panel rounded-[28px] p-6 text-center space-y-4 md:col-span-1 h-fit">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full flex items-center justify-center mx-auto font-bold text-3xl shadow-lg shadow-indigo-500/25 ring-4 ring-white/80">
               {initial}
@@ -121,20 +130,27 @@ export default function Profile() {
 
             <div>
               <h2 className="text-lg font-bold text-slate-900">{profile.fullName}</h2>
-              <p className="text-xs text-blue-600 font-semibold">{profile.mssv}</p>
-              <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-medium text-slate-600">
-                Lớp: {profile.classId}
-              </span>
+              <p className="text-xs text-slate-500 mt-0.5">Người dùng cá nhân</p>
             </div>
 
-            <div className="pt-3 border-t border-slate-200/60 space-y-2 text-left text-xs text-slate-600">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">📧</span>
-                <span className="truncate">{profile.email}</span>
+            <div className="pt-3 border-t border-slate-200/60 space-y-2.5 text-left text-xs text-slate-600">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  📧
+                </span>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] text-slate-400 font-medium">Email</p>
+                  <p className="truncate font-semibold text-slate-800">{profile.email}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">📱</span>
-                <span>{profile.phone}</span>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  📱
+                </span>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-medium">Số điện thoại</p>
+                  <p className="font-semibold text-slate-800">{profile.phone}</p>
+                </div>
               </div>
             </div>
 
@@ -160,7 +176,7 @@ export default function Profile() {
             {/* Form chỉnh sửa */}
             <div className="glass-panel rounded-[28px] p-6 space-y-4">
               <h3 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
-                Chỉnh sửa thông tin sinh viên
+                Chỉnh sửa thông tin cá nhân
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4 text-xs">
@@ -173,44 +189,12 @@ export default function Profile() {
                     id="fullName"
                     type="text"
                     required
+                    placeholder="Nguyễn Văn A"
                     value={profile.fullName}
                     onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
                     disabled={isLoading}
                     className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/90 text-slate-800 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
-                </div>
-
-                {/* Mã số sinh viên & Lớp học */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="mssv" className="block font-semibold text-slate-700 mb-1">
-                      Mã số sinh viên (MSSV):
-                    </label>
-                    <input
-                      id="mssv"
-                      type="text"
-                      required
-                      value={profile.mssv}
-                      onChange={(e) => setProfile({ ...profile, mssv: e.target.value })}
-                      disabled={isLoading}
-                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/90 text-slate-800 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="classId" className="block font-semibold text-slate-700 mb-1">
-                      Lớp học:
-                    </label>
-                    <input
-                      id="classId"
-                      type="text"
-                      required
-                      value={profile.classId}
-                      onChange={(e) => setProfile({ ...profile, classId: e.target.value })}
-                      disabled={isLoading}
-                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/90 text-slate-800 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    />
-                  </div>
                 </div>
 
                 {/* Email & Số điện thoại */}
@@ -223,6 +207,7 @@ export default function Profile() {
                       id="email"
                       type="email"
                       required
+                      placeholder="email@example.com"
                       value={profile.email}
                       onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                       disabled={isLoading}
@@ -236,8 +221,9 @@ export default function Profile() {
                     </label>
                     <input
                       id="phone"
-                      type="text"
+                      type="tel"
                       required
+                      placeholder="0912345678"
                       value={profile.phone}
                       onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                       disabled={isLoading}

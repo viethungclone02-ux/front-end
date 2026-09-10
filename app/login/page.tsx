@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function Login() {
   const router = useRouter();
@@ -11,13 +12,11 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Khởi tạo state cho Đổi Mật Khẩu
+  // State cho Đổi Mật Khẩu
   const [changePasswordData, setChangePasswordData] = useState({
-    currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
   });
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showLoginPass, setShowLoginPass] = useState(false);
@@ -32,7 +31,7 @@ export default function Login() {
     setSuccessMsg('');
   }, [view]);
 
-  // Tự động điền tài khoản nếu đã nhớ trước đó
+  // Tự động điền email nếu đã chọn nhớ đăng nhập trước đó
   useEffect(() => {
     const remembered = localStorage.getItem('remember_username');
     if (remembered) {
@@ -40,8 +39,16 @@ export default function Login() {
     }
   }, []);
 
-  // Xử lý đăng nhập
-  const handleSubmitLogin = (e: React.FormEvent) => {
+  // Nếu đã đăng nhập thì tự động chuyển vào trang chủ quản lý máy tính
+  useEffect(() => {
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (isLoggedIn) {
+      router.replace('/computers');
+    }
+  }, [router]);
+
+  // 1. Xử lý Đăng nhập với Supabase / Tài khoản Admin / Tài khoản hệ thống
+  const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -49,7 +56,7 @@ export default function Login() {
     const trimmedUser = username.trim();
 
     if (!trimmedUser) {
-      setError('Vui lòng nhập tên đăng nhập.');
+      setError('Vui lòng nhập Email hoặc tên đăng nhập.');
       return;
     }
 
@@ -60,86 +67,140 @@ export default function Login() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // 1. Kiểm tra tài khoản Quản trị viên (admin / 123 hoặc mật khẩu lưu trong localStorage)
+      const savedAdminPassword = localStorage.getItem('user_password') || '123';
+      const isAdminLogin =
+        trimmedUser.toLowerCase() === 'admin' &&
+        (password === savedAdminPassword || password === '123');
 
+      if (isAdminLogin) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', 'admin');
+        if (rememberMe) {
+          localStorage.setItem('remember_username', trimmedUser);
+        } else {
+          localStorage.removeItem('remember_username');
+        }
+        setIsLoading(false);
+        router.push('/computers');
+        return;
+      }
+
+      // 2. Thử xác thực với Supabase (nếu người dùng nhập email)
+      let supabaseSuccess = false;
+      let displayName = trimmedUser.includes('@') ? trimmedUser.split('@')[0] : trimmedUser;
+
+      if (trimmedUser.includes('@')) {
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email: trimmedUser,
+          password: password,
+        });
+
+        if (!authError && data?.user) {
+          supabaseSuccess = true;
+          // Lấy thông tin profile từ bảng profiles nếu có
+          try {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name, phone')
+              .eq('id', data.user.id)
+              .maybeSingle();
+
+            if (profileData?.full_name) {
+              displayName = profileData.full_name;
+              const currentProfile = localStorage.getItem('student_profile');
+              const parsed = currentProfile ? JSON.parse(currentProfile) : {};
+              localStorage.setItem(
+                'student_profile',
+                JSON.stringify({
+                  ...parsed,
+                  fullName: profileData.full_name,
+                  email: trimmedUser,
+                  phone: profileData.phone || parsed.phone || '',
+                })
+              );
+            }
+          } catch (profileErr) {
+            console.error('Lỗi lấy profile:', profileErr);
+          }
+        }
+      }
+
+      // Nếu Supabase đăng nhập thành công
+      if (supabaseSuccess) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', displayName);
+        if (rememberMe) {
+          localStorage.setItem('remember_username', trimmedUser);
+        } else {
+          localStorage.removeItem('remember_username');
+        }
+        setIsLoading(false);
+        router.push('/computers');
+        return;
+      }
+
+      // 3. Kiểm tra tài khoản dự phòng đã đăng ký cục bộ
       const savedEmail = localStorage.getItem('user_email');
       const savedUsername = localStorage.getItem('user_username');
       const savedPassword = localStorage.getItem('user_password');
 
-      // Kiểm tra thông tin đăng nhập: admin / 123 (mặc định theo yêu cầu)
-      const isAdmin = trimmedUser.toLowerCase() === 'admin' && (savedPassword ? password === savedPassword : password === '123');
-
-      // Hoặc tài khoản đã đăng ký trong hệ thống
       const isSavedUser =
         ((savedUsername && trimmedUser.toLowerCase() === savedUsername.toLowerCase()) ||
           (savedEmail && trimmedUser.toLowerCase() === savedEmail.toLowerCase())) &&
         savedPassword &&
         password === savedPassword;
 
-      if (!isAdmin && !isSavedUser) {
-        setError('Tên đăng nhập hoặc mật khẩu không chính xác. (Gợi ý: admin / 123)');
+      if (isSavedUser) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', savedUsername || displayName);
+        if (rememberMe) {
+          localStorage.setItem('remember_username', trimmedUser);
+        } else {
+          localStorage.removeItem('remember_username');
+        }
+        setIsLoading(false);
+        router.push('/computers');
         return;
       }
 
-      // Lưu trạng thái đăng nhập
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('currentUser', trimmedUser);
-      if (rememberMe) {
-        localStorage.setItem('remember_username', trimmedUser);
-      } else {
-        localStorage.removeItem('remember_username');
-      }
-
-      router.push('/computers');
-    }, 500);
+      // 4. Nếu không khớp tài khoản nào
+      setError('Tên đăng nhập / Email hoặc mật khẩu không chính xác. (Tài khoản admin: admin / 123)');
+      setIsLoading(false);
+    } catch (err: any) {
+      console.error(err);
+      setError('Đã xảy ra lỗi không xác định. Vui lòng thử lại.');
+      setIsLoading(false);
+    }
   };
 
-  // Xử lý đổi mật khẩu
-  const handleSubmitChangePassword = (e: React.FormEvent) => {
+  // 2. Xử lý Cập nhật mật khẩu mới
+  const handleSubmitChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    const trimmedUser = username.trim();
-    const savedEmail = localStorage.getItem('user_email') || 'hung@gmail.com';
-    const savedUsername = localStorage.getItem('user_username') || 'admin';
-    const savedPassword = localStorage.getItem('user_password') || '123';
-
-    // 1. Kiểm tra tài khoản hợp lệ
-    const isUserValid =
-      trimmedUser.toLowerCase() === 'admin' ||
-      trimmedUser.toLowerCase() === savedUsername.toLowerCase() ||
-      trimmedUser.toLowerCase() === savedEmail.toLowerCase();
-
-    if (!isUserValid) {
-      setError('Tên đăng nhập hoặc Email này không tồn tại trong hệ thống.');
+    if (changePasswordData.newPassword.length < 6) {
+      setError('Mật khẩu mới phải chứa ít nhất 6 ký tự.');
       return;
     }
 
-    // 2. Kiểm tra mật khẩu hiện tại
-    const currentValidPass =
-      trimmedUser.toLowerCase() === 'admin' && !localStorage.getItem('user_password')
-        ? '123'
-        : savedPassword;
-    if (changePasswordData.currentPassword !== currentValidPass) {
-      setError('Mật khẩu hiện tại không chính xác.');
+    if (!/[A-Z]/.test(changePasswordData.newPassword)) {
+      setError('Mật khẩu mới phải chứa ít nhất 1 chữ cái viết hoa (A-Z).');
       return;
     }
 
-    // 3. Kiểm tra độ dài mật khẩu mới
-    if (changePasswordData.newPassword.length < 3) {
-      setError('Mật khẩu mới phải chứa ít nhất 3 ký tự.');
+    if (!/[0-9]/.test(changePasswordData.newPassword)) {
+      setError('Mật khẩu mới phải chứa ít nhất 1 chữ số (0-9).');
       return;
     }
 
-    // 4. Kiểm tra mật khẩu mới khác mật khẩu cũ
-    if (changePasswordData.newPassword === changePasswordData.currentPassword) {
-      setError('Mật khẩu mới không được trùng mật khẩu cũ.');
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(changePasswordData.newPassword)) {
+      setError('Mật khẩu mới phải chứa ít nhất 1 ký tự đặc biệt (ví dụ: !@#$%^&*).');
       return;
     }
 
-    // 5. Kiểm tra xác nhận mật khẩu mới
     if (changePasswordData.newPassword !== changePasswordData.confirmNewPassword) {
       setError('Xác nhận mật khẩu mới không trùng khớp.');
       return;
@@ -147,18 +208,52 @@ export default function Login() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      // 1. Nếu là admin, cập nhật mật khẩu admin trong localStorage
+      if (username.trim().toLowerCase() === 'admin') {
+        localStorage.setItem('user_password', changePasswordData.newPassword);
+        setIsLoading(false);
+        setSuccessMsg('Đổi mật khẩu admin thành công! Bạn có thể sử dụng mật khẩu mới ngay.');
+        setView('login');
+        setPassword('');
+        setChangePasswordData({
+          newPassword: '',
+          confirmNewPassword: '',
+        });
+        return;
+      }
+
+      // 2. Cập nhật mật khẩu với Supabase
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: changePasswordData.newPassword,
+      });
+
+      if (updateError) {
+        // Cập nhật fallback vào localStorage
+        localStorage.setItem('user_password', changePasswordData.newPassword);
+        setIsLoading(false);
+        setSuccessMsg('Đã cập nhật mật khẩu! Bạn có thể đăng nhập bằng mật khẩu mới.');
+        setView('login');
+        setPassword('');
+        setChangePasswordData({
+          newPassword: '',
+          confirmNewPassword: '',
+        });
+        return;
+      }
+
       setIsLoading(false);
-      localStorage.setItem('user_password', changePasswordData.newPassword);
-      setSuccessMsg('Đổi mật khẩu thành công! Hãy đăng nhập lại bằng mật khẩu mới.');
+      setSuccessMsg('Đổi mật khẩu thành công! Bạn có thể sử dụng mật khẩu mới ngay.');
       setView('login');
       setPassword('');
       setChangePasswordData({
-        currentPassword: '',
         newPassword: '',
         confirmNewPassword: '',
       });
-    }, 600);
+    } catch (err: any) {
+      setError('Đã xảy ra lỗi trong quá trình đổi mật khẩu.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -166,7 +261,6 @@ export default function Login() {
       <div className="glass-panel flex w-full max-w-5xl overflow-hidden rounded-[38px] border border-white/80 shadow-[0_30px_80px_rgba(79,110,247,0.16)] bg-white/85">
         {/* Cột Trái: Banner phong cách qlpl-demo */}
         <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-600 to-violet-700 md:flex p-10 text-white">
-          {/* Decorative background elements */}
           <div className="pointer-events-none absolute -right-10 top-8 h-40 w-40 rounded-full border border-white/20"></div>
           <div className="pointer-events-none absolute right-24 top-28 h-3 w-3 rounded-full bg-white/40"></div>
           <div className="pointer-events-none absolute left-14 top-1/2 h-2 w-2 rounded-full bg-white/40"></div>
@@ -192,7 +286,6 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Decorative curved SVG wave */}
           <svg className="absolute bottom-0 left-0 w-full text-white/10" viewBox="0 0 500 120" preserveAspectRatio="none">
             <path d="M0,40 C150,120 350,0 500,60 L500,120 L0,120 Z" fill="currentColor"></path>
           </svg>
@@ -207,17 +300,13 @@ export default function Login() {
                 <div className="mb-6">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">ACCOUNT</p>
                   <h2 className="text-3xl font-bold tracking-tight text-slate-900">Đăng nhập</h2>
-                  <p className="mt-1 text-sm text-slate-500">Nhập thông tin bên dưới để tiếp tục.</p>
-                </div>
-
-                {/* Gợi ý tài khoản nhanh */}
-                <div className="mb-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50/80 px-3.5 py-2.5 text-xs text-blue-700 shadow-xs">
-                  <span>
-                    Tài khoản mẫu: <b>admin</b>
-                  </span>
-                  <span>
-                    Mật khẩu: <b>123</b>
-                  </span>
+                  <p className="mt-1 text-sm text-slate-500">Nhập email hoặc tài khoản để vào hệ thống.</p>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 border border-blue-200/80 shadow-xs">
+                    <span>💡 Admin:</span>
+                    <span className="font-bold">admin</span>
+                    <span>| Mật khẩu:</span>
+                    <span className="font-bold">123</span>
+                  </div>
                 </div>
 
                 {/* Thông báo lỗi / thành công */}
@@ -236,7 +325,7 @@ export default function Login() {
                 <form onSubmit={handleSubmitLogin} className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                      Tên đăng nhập
+                      Email hoặc Tên đăng nhập
                     </label>
                     <input
                       type="text"
@@ -245,7 +334,7 @@ export default function Login() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       disabled={isLoading}
-                      className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-100 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                     />
                   </div>
 
@@ -270,7 +359,7 @@ export default function Login() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={isLoading}
-                        className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-3 pr-11 text-sm text-slate-700 shadow-inner shadow-slate-100 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                        className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-3 pr-11 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                       />
                       <button
                         type="button"
@@ -308,7 +397,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2"
+                    className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition shadow-md"
                   >
                     {isLoading ? 'Đang đăng nhập...' : 'ĐĂNG NHẬP'}
                   </button>
@@ -320,7 +409,7 @@ export default function Login() {
                 <div className="mb-6">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">SECURITY</p>
                   <h2 className="text-2xl font-bold tracking-tight text-slate-900">Đổi Mật Khẩu</h2>
-                  <p className="mt-1 text-sm text-slate-500">Cập nhật mật khẩu mới cho tài khoản của bạn.</p>
+                  <p className="mt-1 text-sm text-slate-500">Cập nhật mật khẩu mới cho tài khoản hiện tại.</p>
                 </div>
 
                 {error && (
@@ -332,41 +421,17 @@ export default function Login() {
                 <form onSubmit={handleSubmitChangePassword} className="space-y-3.5">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                      Tên đăng nhập / Email
+                      Email hoặc Tên đăng nhập
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="admin"
+                      placeholder="admin hoặc email của bạn"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       disabled={isLoading}
                       className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                     />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                      Mật khẩu hiện tại
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCurrent ? 'text' : 'password'}
-                        required
-                        placeholder="••••••••"
-                        value={changePasswordData.currentPassword}
-                        onChange={(e) => setChangePasswordData({ ...changePasswordData, currentPassword: e.target.value })}
-                        disabled={isLoading}
-                        className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 pr-11 text-sm text-slate-700 shadow-inner outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrent(!showCurrent)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                      >
-                        {showCurrent ? '🙈' : '👁️'}
-                      </button>
-                    </div>
                   </div>
 
                   <div>
@@ -421,14 +486,14 @@ export default function Login() {
                     <button
                       type="submit"
                       disabled={isLoading}
-                      className="ios-button-primary w-full py-2.5 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50"
+                      className="ios-button-primary w-full py-2.5 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition shadow-md"
                     >
                       {isLoading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setView('login')}
-                      className="ios-button-secondary w-full py-2.5 px-4 text-sm font-semibold text-slate-700"
+                      className="ios-button-secondary w-full py-2.5 px-4 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-2xl transition"
                     >
                       Quay lại đăng nhập
                     </button>

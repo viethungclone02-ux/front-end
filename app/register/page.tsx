@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function Register() {
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,13 +16,19 @@ export default function Register() {
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess(false);
 
+    // 1. Kiểm tra Validate dữ liệu đầu vào
     if (name.trim().length < 2) {
       setError('Họ và tên phải có ít nhất 2 ký tự.');
+      return;
+    }
+
+    if (phone.trim().length < 9) {
+      setError('Số điện thoại không hợp lệ.');
       return;
     }
 
@@ -29,8 +37,8 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 3) {
-      setError('Mật khẩu phải chứa ít nhất 3 ký tự.');
+    if (password.length < 6) {
+      setError('Mật khẩu Supabase phải chứa ít nhất 6 ký tự.');
       return;
     }
 
@@ -41,25 +49,53 @@ export default function Register() {
 
     setIsLoading(true);
 
-    // Lưu tài khoản đăng ký vào localStorage để đăng nhập & đổi mật khẩu thực tế
-    localStorage.setItem('user_username', name.trim());
-    localStorage.setItem('user_email', email.trim());
-    localStorage.setItem('user_password', password);
+    try {
+      // 2. Đăng ký tài khoản Auth trên Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
 
-    // Giả lập gửi API đăng ký tài khoản
-    setTimeout(() => {
+      if (authError) {
+        setError(authError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Lưu thông tin Họ tên và Số điện thoại vào bảng profiles
+      if (authData.user) {
+        const { error: profileError } = await supabase.from('profiles').insert([
+          {
+            id: authData.user.id,
+            full_name: name.trim(),
+            phone: phone.trim(),
+          },
+        ]);
+
+        if (profileError) {
+          setError('Lỗi lưu thông tin profile: ' + profileError.message);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       setIsLoading(false);
       setSuccess(true);
+
+      // Chuyển hướng sang trang đăng nhập sau 1.5 giây
       setTimeout(() => {
         router.push('/login');
-      }, 1000);
-    }, 800);
+      }, 1500);
+    } catch (err: any) {
+      setError('Đã xảy ra lỗi không xác định. Vui lòng thử lại.');
+      setIsLoading(false);
+    }
   };
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-8 font-sans">
       <div className="glass-panel flex w-full max-w-5xl overflow-hidden rounded-[38px] border border-white/80 shadow-[0_30px_80px_rgba(79,110,247,0.16)] bg-white/85">
-        {/* Cột Trái: Hero Banner theo giao diện qlpl-demo */}
+        {/* Cột Trái: Hero Banner */}
         <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-600 to-violet-700 md:flex p-10 text-white">
           <div className="pointer-events-none absolute -right-10 top-8 h-40 w-40 rounded-full border border-white/20"></div>
           <div className="pointer-events-none absolute right-28 top-28 h-3 w-3 rounded-full bg-white/40"></div>
@@ -132,6 +168,21 @@ export default function Register() {
 
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Số điện thoại
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="0912345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={isLoading || success}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm text-slate-700 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                   Email
                 </label>
                 <input
@@ -178,7 +229,7 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={isLoading || success}
-                className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2"
+                className="ios-button-primary w-full py-3 px-4 text-sm font-semibold uppercase tracking-wider disabled:opacity-50 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition shadow-md"
               >
                 {isLoading ? 'Đang tạo tài khoản...' : 'ĐĂNG KÝ'}
               </button>
