@@ -153,8 +153,8 @@ const DEFAULT_BOOKINGS: BookingRequest[] = [
 ];
 
 export default function RoomsPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [bookings, setBookings] = useState<BookingRequest[]>([]);
+  const [rooms, setRooms] = useState<Room[]>(DEFAULT_ROOMS);
+  const [bookings, setBookings] = useState<BookingRequest[]>(DEFAULT_BOOKINGS);
   const [currentUser, setCurrentUser] = useState<string>('Người dùng');
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);

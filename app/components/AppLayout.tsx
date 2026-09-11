@@ -156,7 +156,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const loadUserData = useCallback(() => {
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    let isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (localStorage.getItem('isLoggedIn') === null) {
+      // Thiết lập mặc định đã đăng nhập cho Vercel demo
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('currentUser', 'Người dùng Vercel');
+      isLoggedIn = true;
+    }
+
     if (!isLoggedIn) {
       router.replace('/login');
       return;
