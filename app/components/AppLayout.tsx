@@ -9,6 +9,141 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  type: 'approved' | 'rejected' | 'info';
+}
+
+function NotificationBell() {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [open, setOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  const loadNotifications = useCallback(() => {
+    const raw = localStorage.getItem('system_notifications');
+    if (raw) {
+      try {
+        setNotifications(JSON.parse(raw));
+      } catch {
+        setNotifications([]);
+      }
+    } else {
+      // Mẫu thông báo khởi tạo
+      const defaultNotifs: AppNotification[] = [
+        {
+          id: 'notif-1',
+          title: 'Yêu cầu được chấp nhận',
+          message: 'Đơn đặt phòng A-101 ngày 15/10/2026 đã được duyệt.',
+          createdAt: '10 phút trước',
+          read: false,
+          type: 'approved',
+        },
+      ];
+      setNotifications(defaultNotifs);
+      localStorage.setItem('system_notifications', JSON.stringify(defaultNotifs));
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const handleUpdate = () => loadNotifications();
+    window.addEventListener('notificationsUpdated', handleUpdate);
+    return () => window.removeEventListener('notificationsUpdated', handleUpdate);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAllAsRead = () => {
+    const updated = notifications.map((n) => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem('system_notifications', JSON.stringify(updated));
+  };
+
+  return (
+    <div className="relative" ref={bellRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/80 bg-white/80 text-slate-700 shadow-xs transition hover:bg-white hover:scale-105 cursor-pointer"
+        aria-label="Thông báo"
+      >
+        <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+          />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-extrabold text-white ring-2 ring-white animate-pulse">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-3 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-sm text-slate-900">Thông báo</span>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                  {unreadCount} mới
+                </span>
+              )}
+            </div>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                className="text-[11px] font-medium text-blue-600 hover:underline cursor-pointer"
+              >
+                Đánh dấu đã đọc
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-72 overflow-y-auto space-y-2">
+            {notifications.length === 0 ? (
+              <p className="text-center py-6 text-xs text-slate-400">Không có thông báo nào</p>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`p-2.5 rounded-xl border transition ${
+                    n.read ? 'bg-slate-50/60 border-slate-100 text-slate-600' : 'bg-blue-50/70 border-blue-100 text-slate-800 font-medium'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-slate-900">{n.title}</span>
+                    <span className="text-[10px] text-slate-400">{n.createdAt}</span>
+                  </div>
+                  <p className="text-xs mt-1 leading-relaxed text-slate-600">{n.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -150,6 +285,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </svg>
       ),
     },
+    {
+      label: 'Báo cáo & Thống kê',
+      href: '/analytics',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+      ),
+      badge: 'Admin',
+    },
   ];
 
   const initial = currentUser.trim().charAt(0).toUpperCase() || 'U';
@@ -166,9 +313,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
             aria-label="Đóng/mở menu"
             className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white hover:scale-105 cursor-pointer"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-5 w-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <div className="relative w-5 h-4 flex flex-col justify-between items-center">
+              <span
+                className={`w-full h-0.5 bg-slate-700 rounded-full transition-all duration-300 transform origin-left ${
+                  sidebarOpen ? 'rotate-45 translate-x-0.5 -translate-y-0.5' : ''
+                }`}
+              />
+              <span
+                className={`w-full h-0.5 bg-slate-700 rounded-full transition-all duration-300 ${
+                  sidebarOpen ? 'opacity-0 scale-x-0' : 'opacity-100'
+                }`}
+              />
+              <span
+                className={`w-full h-0.5 bg-slate-700 rounded-full transition-all duration-300 transform origin-left ${
+                  sidebarOpen ? '-rotate-45 translate-x-0.5 translate-y-0.5' : ''
+                }`}
+              />
+            </div>
           </button>
 
           <Link href="/rooms" className="flex items-center gap-3 group">
@@ -182,8 +343,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </Link>
         </div>
 
-        {/* Right: User dropdown (Hệ thống trực tuyến đã bỏ theo yêu cầu) */}
+        {/* Right: Notification Bell + User dropdown */}
         <div className="flex items-center gap-3">
+          {/* Quả chuông thông báo */}
+          <NotificationBell />
+
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
@@ -262,18 +426,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </header>
 
       {/* Main Body Area: Sidebar + Page Content */}
-      <div className="mt-3 flex flex-1 gap-3 overflow-hidden">
+      <div className="mt-3 flex flex-1 gap-3 overflow-hidden relative">
         {/* Sidebar Navigation */}
         <aside
-          className={`glass-panel shrink-0 overflow-hidden rounded-[28px] transition-all duration-200 ${
-            sidebarOpen ? 'w-64 sm:w-72' : 'w-0 border-none p-0 opacity-0 pointer-events-none'
+          className={`glass-panel shrink-0 overflow-hidden rounded-[28px] transition-all duration-300 ease-in-out ${
+            sidebarOpen
+              ? 'w-64 sm:w-72 opacity-100'
+              : 'w-0 opacity-0 -mr-3 border-none p-0 pointer-events-none'
           }`}
         >
           <nav className="w-64 sm:w-72 flex flex-col justify-between h-full p-4">
-            <div className="space-y-1.5">
-              <div className="px-3 pb-2 pt-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Navigation</p>
-              </div>
+            <div className="space-y-1.5 pt-1">
 
               {navItems.map((item) => {
                 const isActive = pathname === item.href || (item.href === '/rooms' && pathname === '/computers');

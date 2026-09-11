@@ -17,6 +17,11 @@ export interface BookingRequest {
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   rejectionReason?: string;
+  incidentReport?: {
+    type: string;
+    description: string;
+    reportedAt: string;
+  };
 }
 
 export default function MyBookingsPage() {
@@ -32,6 +37,16 @@ export default function MyBookingsPage() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  // Modal Mã QR nhận phòng
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [activeQrBooking, setActiveQrBooking] = useState<BookingRequest | null>(null);
+
+  // Modal Báo cáo sự cố thiết bị
+  const [incidentModalOpen, setIncidentModalOpen] = useState(false);
+  const [incidentBooking, setIncidentBooking] = useState<BookingRequest | null>(null);
+  const [incidentType, setIncidentType] = useState('Máy chiếu hỏng / không lên hình');
+  const [incidentDescription, setIncidentDescription] = useState('');
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser') || 'Người dùng';
@@ -75,17 +90,34 @@ export default function MyBookingsPage() {
     localStorage.setItem('room_bookings', JSON.stringify(newBookings));
   };
 
+  const addSystemNotification = (title: string, message: string, type: 'approved' | 'rejected' | 'info') => {
+    const raw = localStorage.getItem('system_notifications');
+    let list = [];
+    if (raw) {
+      try { list = JSON.parse(raw); } catch { list = []; }
+    }
+    const notif = {
+      id: 'notif-' + Date.now(),
+      title,
+      message,
+      createdAt: 'Vừa xong',
+      read: false,
+      type,
+    };
+    list.unshift(notif);
+    localStorage.setItem('system_notifications', JSON.stringify(list));
+    window.dispatchEvent(new Event('notificationsUpdated'));
+  };
+
   // Lọc theo người dùng và trạng thái
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
-      // Phạm vi
       const matchScope =
         viewScope === 'all'
           ? true
           : b.userName?.toLowerCase() === currentUser?.toLowerCase() ||
             (currentUserEmail && b.userEmail?.toLowerCase() === currentUserEmail?.toLowerCase());
 
-      // Trạng thái
       const matchStatus = statusFilter === 'all' || b.status === statusFilter;
       return matchScope && matchStatus;
     });
@@ -126,10 +158,18 @@ export default function MyBookingsPage() {
 
   // Admin: Duyệt yêu cầu
   const handleApprove = (bookingId: string) => {
+    const target = bookings.find(b => b.id === bookingId);
     const updated = bookings.map((b) =>
       b.id === bookingId ? { ...b, status: 'approved' as const } : b
     );
     saveBookings(updated);
+    if (target) {
+      addSystemNotification(
+        'Đơn mượn phòng được duyệt ✅',
+        `Yêu cầu mượn ${target.roomName} vào ${target.bookingDate} (${target.timeSlot}) đã được ban quản lý phê duyệt!`,
+        'approved'
+      );
+    }
     setNotification({
       type: 'success',
       text: 'Đã phê duyệt yêu cầu đặt phòng thành công!',
@@ -149,12 +189,20 @@ export default function MyBookingsPage() {
     e.preventDefault();
     if (!selectedBookingId) return;
 
+    const target = bookings.find(b => b.id === selectedBookingId);
     const updated = bookings.map((b) =>
       b.id === selectedBookingId
         ? { ...b, status: 'rejected' as const, rejectionReason }
         : b
     );
     saveBookings(updated);
+    if (target) {
+      addSystemNotification(
+        'Đơn mượn phòng bị từ chối ❌',
+        `Yêu cầu mượn ${target.roomName} vào ${target.bookingDate} bị từ chối. Lý do: ${rejectionReason}`,
+        'rejected'
+      );
+    }
     setRejectModalOpen(false);
     setSelectedBookingId(null);
     setNotification({
@@ -162,6 +210,47 @@ export default function MyBookingsPage() {
       text: 'Đã từ chối yêu cầu đặt phòng.',
     });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  // Mở QR Modal
+  const handleOpenQR = (b: BookingRequest) => {
+    setActiveQrBooking(b);
+    setQrModalOpen(true);
+  };
+
+  // Mở Incident Modal
+  const handleOpenIncident = (b: BookingRequest) => {
+    setIncidentBooking(b);
+    setIncidentType('Máy chiếu hỏng / không lên hình');
+    setIncidentDescription('');
+    setIncidentModalOpen(true);
+  };
+
+  // Gửi Báo cáo sự cố
+  const handleSubmitIncident = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!incidentBooking) return;
+
+    const nowStr = new Date().toLocaleString('vi-VN');
+    const updated = bookings.map((b) =>
+      b.id === incidentBooking.id
+        ? {
+            ...b,
+            incidentReport: {
+              type: incidentType,
+              description: incidentDescription,
+              reportedAt: nowStr,
+            },
+          }
+        : b
+    );
+    saveBookings(updated);
+    setIncidentModalOpen(false);
+    setNotification({
+      type: 'success',
+      text: 'Đã gửi báo cáo sự cố tới Ban quản lý thiết bị!',
+    });
+    setTimeout(() => setNotification(null), 3500);
   };
 
   return (
@@ -181,7 +270,7 @@ export default function MyBookingsPage() {
                 Lịch Đặt Phòng Của Tôi
               </h1>
               <p className="mt-1 text-xs sm:text-sm text-slate-600">
-                Theo dõi tiến độ xét duyệt yêu cầu mượn phòng, kiểm tra thời gian sử dụng hoặc chủ động hủy yêu cầu khi có thay đổi.
+                Theo dõi tiến độ xét duyệt yêu cầu mượn phòng, nhận mã QR check-in phòng học và gửi báo cáo sự cố thiết bị.
               </p>
             </div>
 
@@ -346,7 +435,7 @@ export default function MyBookingsPage() {
                         <span className="text-[11px] font-medium text-slate-500">{req.building}</span>
                       </div>
 
-                      {/* Badge trạng thái (Chờ duyệt, Đã duyệt, Từ chối) */}
+                      {/* Badge trạng thái */}
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-bold border shrink-0 ${
                           isPending
@@ -384,8 +473,45 @@ export default function MyBookingsPage() {
                     {/* Lý do từ chối nếu có */}
                     {isRejected && req.rejectionReason && (
                       <div className="rounded-xl bg-rose-50 p-2.5 border border-rose-200 text-xs text-rose-800">
-                        <span className="font-bold block">Lý do từ chối:</span>
+                        <span className="font-bold block">❌ Lý do từ chối:</span>
                         <p>{req.rejectionReason}</p>
+                      </div>
+                    )}
+
+                    {/* Báo cáo sự cố đã gửi */}
+                    {req.incidentReport && (
+                      <div className="rounded-xl bg-amber-50/90 p-2.5 border border-amber-200 text-xs text-amber-900 space-y-0.5">
+                        <div className="flex items-center gap-1 font-bold">
+                          <span>🛠️ Đã báo sự cố:</span>
+                          <span className="text-amber-800">{req.incidentReport.type}</span>
+                        </div>
+                        {req.incidentReport.description && (
+                          <p className="text-[11px] text-amber-800 italic">"{req.incidentReport.description}"</p>
+                        )}
+                        <p className="text-[10px] text-amber-600">{req.incidentReport.reportedAt}</p>
+                      </div>
+                    )}
+
+                    {/* Nút Tính năng nâng cao: Mã QR & Báo sự cố khi ĐÃ DUYỆT */}
+                    {isApproved && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQR(req)}
+                          className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer shadow-xs transition"
+                        >
+                          <span>📱</span>
+                          <span>Xem mã QR nhận phòng</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenIncident(req)}
+                          className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 cursor-pointer shadow-xs transition"
+                        >
+                          <span>⚠️</span>
+                          <span>Báo hỏng / Sự cố</span>
+                        </button>
                       </div>
                     )}
 
@@ -470,6 +596,138 @@ export default function MyBookingsPage() {
                   className="rounded-2xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 shadow-sm cursor-pointer"
                 >
                   Xác nhận từ chối
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL MÃ QR CHECK-IN PHÒNG HỌC */}
+      {qrModalOpen && activeQrBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="glass-panel w-full max-w-sm rounded-[32px] p-6 shadow-2xl text-center space-y-4 bg-white/95">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 text-2xl">
+              📱
+            </div>
+            <div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-800">
+                ĐÃ XÁC NHẬN - CHECK-IN SMART ROOM
+              </span>
+              <h3 className="mt-2 text-xl font-extrabold text-slate-900">{activeQrBooking.roomName}</h3>
+              <p className="text-xs text-slate-500">{activeQrBooking.building} • {activeQrBooking.bookingDate}</p>
+            </div>
+
+            {/* Mã QR giả lập trực quan chuẩn SVG */}
+            <div className="mx-auto w-48 h-48 bg-white p-3 rounded-2xl border-2 border-indigo-200 shadow-inner flex flex-col items-center justify-center relative">
+              <svg className="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
+                {/* Viền QR 4 góc */}
+                <rect x="5" y="5" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="4" />
+                <rect x="10" y="10" width="15" height="15" fill="currentColor" />
+                
+                <rect x="70" y="5" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="4" />
+                <rect x="75" y="10" width="15" height="15" fill="currentColor" />
+                
+                <rect x="5" y="70" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="4" />
+                <rect x="10" y="75" width="15" height="15" fill="currentColor" />
+
+                {/* Các điểm data */}
+                <rect x="35" y="10" width="8" height="8" />
+                <rect x="48" y="10" width="8" height="8" />
+                <rect x="35" y="25" width="8" height="8" />
+                <rect x="50" y="35" width="12" height="12" />
+                <rect x="10" y="38" width="8" height="8" />
+                <rect x="22" y="48" width="8" height="8" />
+                <rect x="70" y="45" width="10" height="10" />
+                <rect x="82" y="60" width="8" height="8" />
+                <rect x="40" y="70" width="12" height="12" />
+                <rect x="60" y="75" width="8" height="8" />
+                <rect x="75" y="75" width="15" height="15" />
+              </svg>
+              <span className="absolute bottom-1 bg-indigo-600 text-white font-mono text-[9px] px-2 py-0.5 rounded-full font-bold">
+                ID: {activeQrBooking.id.substring(0, 8)}
+              </span>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-3 text-left text-xs text-slate-700 space-y-1 border border-slate-100">
+              <p><strong>Khung giờ:</strong> {activeQrBooking.timeSlot}</p>
+              <p><strong>Người đại diện:</strong> {activeQrBooking.userName}</p>
+              <p className="text-[11px] text-slate-500">Đưa mã này cho Cán bộ quản lý phòng hoặc quét cảm biến cửa tự động.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setQrModalOpen(false)}
+              className="ios-button-primary w-full py-2.5 text-xs font-bold"
+            >
+              Đóng Mã QR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BÁO CÁO SỰ CỐ THIẾT BỊ */}
+      {incidentModalOpen && incidentBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="glass-panel w-full max-w-md rounded-[32px] p-6 shadow-2xl space-y-4 bg-white/95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Báo hỏng / Sự cố thiết bị</h3>
+                  <p className="text-xs text-slate-500">{incidentBooking.roomName} • {incidentBooking.bookingDate}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIncidentModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitIncident} className="space-y-3.5">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Tình trạng sự cố:</label>
+                <select
+                  value={incidentType}
+                  onChange={(e) => setIncidentType(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                >
+                  <option value="Máy chiếu hỏng / không lên hình">🎥 Máy chiếu hỏng / không lên hình</option>
+                  <option value="Micro mất tín hiệu / hết pin">🎤 Micro mất tín hiệu / hết pin</option>
+                  <option value="Điều hòa không lạnh / bị chảy nước">❄️ Điều hòa không lạnh / bị chảy nước</option>
+                  <option value="Wifi / Mạng LAN không kết nối được">📶 Wifi / Mạng LAN không kết nối được</option>
+                  <option value="Bàn ghế bị gãy / vỡ thiết bị khác">🪑 Bàn ghế bị gãy / vỡ thiết bị khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Mô tả chi tiết sự cố:</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={incidentDescription}
+                  onChange={(e) => setIncidentDescription(e.target.value)}
+                  placeholder="Ví dụ: Máy chiếu bị mờ nhòe màu xanh, điều hòa phòng 101 kêu to..."
+                  className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-800 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIncidentModalOpen(false)}
+                  className="ios-button-secondary px-4 py-2 text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-amber-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-700 cursor-pointer"
+                >
+                  Gửi báo cáo sự cố
                 </button>
               </div>
             </form>

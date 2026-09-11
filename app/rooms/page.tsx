@@ -164,6 +164,15 @@ export default function RoomsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Ngày đặt phòng tối thiểu là ngày hôm nay
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
   // Form Đặt phòng
   const [bookingForm, setBookingForm] = useState({
     roomId: '',
@@ -171,12 +180,23 @@ export default function RoomsPage() {
     timeSlot: 'Sáng (7h-11h)',
     purpose: '',
   });
+
+  // Tự động gán ngày hôm nay làm giá trị ban đầu cho Form nếu chưa chọn
+  useEffect(() => {
+    if (!bookingForm.bookingDate && todayStr) {
+      setBookingForm((prev) => ({ ...prev, bookingDate: todayStr }));
+    }
+  }, [todayStr, bookingForm.bookingDate]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Modal Chi tiết phòng
+  // Chế độ xem: List view hoặc Calendar view
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+
+  // Modal Chi tiết phòng & Sơ đồ tầng
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedRoomDetail, setSelectedRoomDetail] = useState<Room | null>(null);
+  const [showFloorMap, setShowFloorMap] = useState(false);
 
   // Popup Modal Xác nhận Xóa phòng (Có / Không)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -197,15 +217,6 @@ export default function RoomsPage() {
   const [facilitiesInput, setFacilitiesInput] = useState('Máy chiếu, Micro, Điều hòa, Wifi');
 
   const formSectionRef = useRef<HTMLDivElement>(null);
-
-  // Ngày đặt phòng tối thiểu là ngày hôm nay
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, []);
 
   // Hàm load dữ liệu thực tế từ LocalStorage
   const loadData = useCallback(() => {
@@ -336,11 +347,32 @@ export default function RoomsPage() {
   }, [rooms, selectedBuilding, selectedStatus, searchQuery]);
 
   // Xử lý khi bấm nút "Đặt phòng này" từ Card phòng
-  const handleSelectRoomToBook = (room: Room) => {
+  const handleSelectRoomToBook = (room: Room, targetTimeSlot?: string) => {
     if (room.status !== 'available') return;
+    
+    const curDate = bookingForm.bookingDate || todayStr;
+
+    // Tìm các ca đã bị đặt của phòng này trong ngày curDate
+    const occupied = bookings
+      .filter((b) => b.roomId === room.id && b.bookingDate === curDate && b.status !== 'rejected')
+      .map((b) => b.timeSlot);
+
+    let nextSlot = targetTimeSlot || bookingForm.timeSlot;
+    // Nếu ca mong muốn/hiện tại đã bị trùng thì tìm ca trống khả dụng đầu tiên
+    const allSlots = ['Sáng (7h-11h)', 'Chiều (13h-17h)', 'Tối (18h-21h)', 'Cả ngày (7h-17h)'];
+    if (occupied.includes(nextSlot) || (nextSlot === 'Cả ngày (7h-17h)' && occupied.length > 0)) {
+      const freeSlot = allSlots.find((slot) => {
+        if (slot === 'Cả ngày (7h-17h)') return occupied.length === 0;
+        return !occupied.includes(slot);
+      });
+      if (freeSlot) nextSlot = freeSlot;
+    }
+
     setBookingForm((prev) => ({
       ...prev,
       roomId: room.id,
+      bookingDate: curDate,
+      timeSlot: nextSlot,
     }));
     setMessage(null);
 
@@ -591,23 +623,46 @@ export default function RoomsPage() {
                 <p className="text-xs text-slate-500">Chọn phòng phù hợp với số lượng thành viên và nhu cầu thiết bị</p>
               </div>
 
-              {/* Ô tìm kiếm */}
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="Tìm phòng, sức chứa, thiết bị..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white/90 px-3.5 py-2 pl-9 text-xs text-slate-800 shadow-inner outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+              {/* Ô tìm kiếm & Chuyển đổi View Mode (List / Calendar) */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex rounded-xl border border-slate-200 bg-white p-1 text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={`rounded-lg px-2.5 py-1 font-bold transition cursor-pointer ${
+                      viewMode === 'list' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ☰ List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('calendar')}
+                    className={`rounded-lg px-2.5 py-1 font-bold transition cursor-pointer ${
+                      viewMode === 'calendar' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📅 Calendar
+                  </button>
+                </div>
+
+                <div className="relative w-full sm:w-56">
+                  <input
+                    type="text"
+                    placeholder="Tìm phòng, sức chứa..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200/90 bg-white/90 px-3.5 py-2 pl-9 text-xs text-slate-800 shadow-inner outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
               </div>
             </div>
 
@@ -649,7 +704,67 @@ export default function RoomsPage() {
               </select>
             </div>
 
-            {/* DANH SÁCH CARD PHÒNG HỌC */}
+            {/* DANH SÁCH CARD PHÒNG HỌC HOẶC GRID CALENDAR VIEW */}
+            {viewMode === 'calendar' ? (
+              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Lịch Đặt Phòng Theo Tuần (Grid Calendar)</h3>
+                  <span className="text-[11px] text-slate-500">Bấm trực tiếp vào ca rảnh để đặt</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="p-2 text-left">Tên Phòng</th>
+                        <th className="p-2">Ca Sáng (7h-11h)</th>
+                        <th className="p-2">Ca Chiều (13h-17h)</th>
+                        <th className="p-2">Ca Tối (18h-21h)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRooms.map((r) => {
+                        const isAvailable = r.status === 'available';
+                        return (
+                          <tr key={r.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-2 text-left font-bold text-slate-900">
+                              {r.name}
+                              <span className="block text-[10px] text-slate-400 font-normal">{r.building}</span>
+                            </td>
+                            {['Sáng (7h-11h)', 'Chiều (13h-17h)', 'Tối (18h-21h)'].map((slot) => {
+                              const isSlotBooked = bookings.some(
+                                (b) => b.roomId === r.id && b.timeSlot === slot && b.status !== 'rejected'
+                              );
+                              return (
+                                <td key={slot} className="p-2">
+                                  {isSlotBooked ? (
+                                    <span className="inline-block rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">
+                                      Đã đăng ký
+                                    </span>
+                                  ) : !isAvailable ? (
+                                    <span className="inline-block rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-400">
+                                      {r.status === 'maintenance' ? 'Bảo trì' : 'Không khả dụng'}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSelectRoomToBook(r, slot)}
+                                      className="rounded-lg bg-emerald-100 hover:bg-emerald-200 px-2 py-1 text-[10px] font-bold text-emerald-800 transition cursor-pointer"
+                                    >
+                                      + Chọn đặt
+                                    </button>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-3.5 pt-2">
               {filteredRooms.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-8 text-center text-sm font-semibold text-slate-500">
@@ -789,6 +904,7 @@ export default function RoomsPage() {
                 })
               )}
             </div>
+            )}
           </section>
 
           {/* CỘT PHẢI: FORM ĐĂNG KÝ ĐẶT PHÒNG */}
@@ -894,23 +1010,81 @@ export default function RoomsPage() {
                 />
               </div>
 
-              {/* 4. Khung giờ sử dụng */}
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  Khung giờ sử dụng: <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={bookingForm.timeSlot}
-                  onChange={(e) => setBookingForm({ ...bookingForm, timeSlot: e.target.value })}
-                  required
-                  className="w-full rounded-2xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-800 shadow-inner outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                >
-                  <option value="Sáng (7h-11h)">🌅 Sáng (7h - 11h)</option>
-                  <option value="Chiều (13h-17h)">☀️ Chiều (13h - 17h)</option>
-                  <option value="Tối (18h-21h)">🌙 Tối (18h - 21h)</option>
-                  <option value="Cả ngày (7h-17h)">📅 Cả ngày (7h - 17h)</option>
-                </select>
-              </div>
+              {/* 4. Khung giờ sử dụng & Tự động kiểm tra xung đột trùng ca */}
+              {(() => {
+                const occupiedSlots: string[] = [];
+                const targetDate = bookingForm.bookingDate || todayStr;
+                if (bookingForm.roomId && targetDate) {
+                  bookings.forEach((b) => {
+                    if (
+                      b.roomId === bookingForm.roomId &&
+                      b.bookingDate === targetDate &&
+                      (b.status === 'approved' || b.status === 'pending')
+                    ) {
+                      occupiedSlots.push(b.timeSlot);
+                    }
+                  });
+                }
+
+                const isSangDisabled = occupiedSlots.includes('Sáng (7h-11h)') || occupiedSlots.includes('Cả ngày (7h-17h)');
+                const isChieuDisabled = occupiedSlots.includes('Chiều (13h-17h)') || occupiedSlots.includes('Cả ngày (7h-17h)');
+                const isToiDisabled = occupiedSlots.includes('Tối (18h-21h)');
+                const isCaNgayDisabled = occupiedSlots.length > 0;
+
+                const isCurrentSelectedDisabled =
+                  (bookingForm.timeSlot === 'Sáng (7h-11h)' && isSangDisabled) ||
+                  (bookingForm.timeSlot === 'Chiều (13h-17h)' && isChieuDisabled) ||
+                  (bookingForm.timeSlot === 'Tối (18h-21h)' && isToiDisabled) ||
+                  (bookingForm.timeSlot === 'Cả ngày (7h-17h)' && isCaNgayDisabled);
+
+                const targetRoomName = rooms.find((r) => r.id === bookingForm.roomId)?.name || 'đã chọn';
+
+                return (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        Khung giờ sử dụng: <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={bookingForm.timeSlot}
+                        onChange={(e) => setBookingForm({ ...bookingForm, timeSlot: e.target.value })}
+                        required
+                        className={`w-full rounded-2xl border bg-white px-3.5 py-2.5 text-xs font-bold shadow-inner outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                          isCurrentSelectedDisabled ? 'border-rose-400 bg-rose-50 text-rose-800' : 'border-slate-200/90 text-slate-800'
+                        }`}
+                      >
+                        <option value="Sáng (7h-11h)" disabled={isSangDisabled}>
+                          🌅 Sáng (7h - 11h) {isSangDisabled ? '[❌ ĐÃ ĐẶT]' : '🟢 [TRỐNG]'}
+                        </option>
+                        <option value="Chiều (13h-17h)" disabled={isChieuDisabled}>
+                          ☀️ Chiều (13h - 17h) {isChieuDisabled ? '[❌ ĐÃ ĐẶT]' : '🟢 [TRỐNG]'}
+                        </option>
+                        <option value="Tối (18h-21h)" disabled={isToiDisabled}>
+                          🌙 Tối (18h - 21h) {isToiDisabled ? '[❌ ĐÃ ĐẶT]' : '🟢 [TRỐNG]'}
+                        </option>
+                        <option value="Cả ngày (7h-17h)" disabled={isCaNgayDisabled}>
+                          📅 Cả ngày (7h - 17h) {isCaNgayDisabled ? '[❌ ĐÃ ĐẶT]' : '🟢 [TRỐNG]'}
+                        </option>
+                      </select>
+
+                      <p className="mt-1 text-[10px] text-slate-500 flex items-center gap-1">
+                        <span>⏱️ Hệ thống tự động dành 30 phút Buffer Time giữa các ca bàn giao.</span>
+                      </p>
+                    </div>
+
+                    {/* Cảnh báo xung đột thời gian */}
+                    {bookingForm.roomId && bookingForm.bookingDate && isCurrentSelectedDisabled && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800 flex items-start gap-2">
+                        <span className="text-base">⚠️</span>
+                        <p>
+                          Phòng <strong>{targetRoomName}</strong> đã có đơn đăng ký vào{' '}
+                          <strong>{bookingForm.timeSlot}</strong> ngày <strong>{bookingForm.bookingDate}</strong>! Vui lòng chọn ca khác hoặc phòng khác.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* 5. Mục đích sử dụng (Textarea) */}
               <div>
@@ -1041,12 +1215,47 @@ export default function RoomsPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Nút Xem vị trí phòng & Sơ đồ tầng */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFloorMap(!showFloorMap)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50/80 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer shadow-xs transition"
+                >
+                  <span>🗺️</span>
+                  <span>{showFloorMap ? 'Ẩn Sơ Đồ Vị Trí Phòng' : 'Xem Vị Trí Phòng & Sơ Đồ Tầng (Floor Map)'}</span>
+                </button>
+
+                {showFloorMap && (
+                  <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-2 text-center animate-in fade-in duration-200">
+                    <p className="text-[11px] font-bold text-indigo-900">Sơ đồ bố trí vị trí phòng {selectedRoomDetail.name} tại {selectedRoomDetail.building}:</p>
+                    <div className="mx-auto max-w-sm rounded-xl border border-indigo-200 bg-white p-4 shadow-inner space-y-2">
+                      <div className="grid grid-cols-3 gap-2 text-[10px] font-bold text-slate-500">
+                        <div className="bg-slate-100 p-2 rounded-lg">Cầu Thang A</div>
+                        <div className="bg-slate-100 p-2 rounded-lg">Hành Lang Chính</div>
+                        <div className="bg-slate-100 p-2 rounded-lg">Thang Máy B</div>
+                      </div>
+                      <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white font-extrabold text-xs shadow-md">
+                        📍 {selectedRoomDetail.name} ({selectedRoomDetail.floor}) - Cửa Mở Tự Động
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 font-medium">
+                        <div className="bg-slate-50 p-1.5 rounded-lg border">WC Nam / Nữ (Cách 15m)</div>
+                        <div className="bg-slate-50 p-1.5 rounded-lg border">Phòng Kỹ Thuật (Đối diện)</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setDetailModalOpen(false)}
+                onClick={() => {
+                  setDetailModalOpen(false);
+                  setShowFloorMap(false);
+                }}
                 className="ios-button-secondary px-4 py-2 text-xs font-bold"
               >
                 Đóng
