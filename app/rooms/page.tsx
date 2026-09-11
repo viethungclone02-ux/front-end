@@ -265,24 +265,7 @@ export default function RoomsPage() {
       }
     }
 
-    // Tự động tính toán trạng thái phòng theo danh sách đặt phòng (Acc này hoặc Acc khác đã đặt)
-    const activeBookedRoomIds = new Set(
-      loadedBookings
-        .filter((b) => b.status === 'pending' || b.status === 'approved')
-        .map((b) => b.roomId)
-    );
-
-    const updatedRoomsWithBookingStatus = loadedRooms.map((r) => {
-      // Nếu phòng đang bảo trì thì giữ nguyên 'maintenance'
-      if (r.status === 'maintenance') return r;
-      // Nếu phòng có trong danh sách đặt phòng đang active thì cập nhật là 'booked' (Đã đặt)
-      if (activeBookedRoomIds.has(r.id)) {
-        return { ...r, status: 'booked' as const };
-      }
-      return r;
-    });
-
-    setRooms(updatedRoomsWithBookingStatus);
+    setRooms(loadedRooms);
   }, []);
 
   useEffect(() => {
@@ -407,13 +390,27 @@ export default function RoomsPage() {
       return;
     }
 
-    if (targetRoom.status === 'booked') {
-      setMessage({ type: 'error', text: 'Phòng này đã được tài khoản khác hoặc bạn đặt trước đó!' });
+    if (targetRoom.status === 'maintenance') {
+      setMessage({ type: 'error', text: 'Phòng này đang bảo trì, vui lòng chọn phòng khác.' });
       return;
     }
 
-    if (targetRoom.status === 'maintenance') {
-      setMessage({ type: 'error', text: 'Phòng này đang bảo trì, vui lòng chọn phòng khác.' });
+    // Kiểm tra xem ca và ngày cụ thể này đã được đặt chưa (Realtime Check)
+    const isConflict = bookings.some(
+      (b) =>
+        b.roomId === targetRoom.id &&
+        b.bookingDate === bookingForm.bookingDate &&
+        (b.status === 'approved' || b.status === 'pending') &&
+        (b.timeSlot === bookingForm.timeSlot ||
+          b.timeSlot === 'Cả ngày (7h-17h)' ||
+          bookingForm.timeSlot === 'Cả ngày (7h-17h)')
+    );
+
+    if (isConflict) {
+      setMessage({
+        type: 'error',
+        text: `Phòng ${targetRoom.name} đã được đặt vào ${bookingForm.timeSlot} ngày ${bookingForm.bookingDate}. Vui lòng chọn ca khác!`,
+      });
       return;
     }
 
@@ -434,19 +431,10 @@ export default function RoomsPage() {
         createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       };
 
-      // 1. Cập nhật danh sách đặt phòng
+      // Cập nhật danh sách đặt phòng và bắn Event đồng bộ Realtime cho mọi tài khoản / Tab khác
       const updatedBookings = [newBooking, ...bookings];
-
-      // 2. Đổi trạng thái phòng thành 'booked' (Đã đặt) ngay lập tức cho tất cả tài khoản
-      const updatedRooms = rooms.map((r) =>
-        r.id === targetRoom.id ? { ...r, status: 'booked' as const } : r
-      );
-
-      // 3. Ghi vào localStorage & Bắn event đồng bộ realtime cho mọi tab/tài khoản khác
       setBookings(updatedBookings);
-      setRooms(updatedRooms);
       localStorage.setItem('room_bookings', JSON.stringify(updatedBookings));
-      localStorage.setItem('classroom_list', JSON.stringify(updatedRooms));
       window.dispatchEvent(new Event('bookingUpdated'));
       window.dispatchEvent(new Event('storage'));
 
@@ -772,9 +760,19 @@ export default function RoomsPage() {
                 </div>
               ) : (
                 filteredRooms.map((room) => {
-                  const isAvailable = room.status === 'available';
-                  const isBooked = room.status === 'booked';
+                  const targetDate = bookingForm.bookingDate || todayStr;
                   const isMaintenance = room.status === 'maintenance';
+
+                  // Tính các ca đã bị đặt trong ngày targetDate đối với phòng này
+                  const occupiedSlots = bookings.filter(
+                    (b) => b.roomId === room.id && b.bookingDate === targetDate && b.status !== 'rejected'
+                  );
+
+                  const isFullDayBooked = occupiedSlots.some((b) => b.timeSlot === 'Cả ngày (7h-17h)');
+                  const occupiedCount = isFullDayBooked ? 3 : Math.min(3, occupiedSlots.length);
+                  const freeSlotsCount = Math.max(0, 3 - occupiedCount);
+
+                  const isRoomFull = isMaintenance || occupiedCount >= 3;
                   const isSelectedForBooking = bookingForm.roomId === room.id;
 
                   return (
@@ -831,17 +829,25 @@ export default function RoomsPage() {
 
                         {/* Trạng thái & Nút hành động */}
                         <div className="flex flex-wrap items-center justify-between gap-2.5 md:flex-col md:items-end md:justify-center shrink-0">
-                          {/* Badge Trạng thái: Trống (Xanh), Đã đặt (Vàng), Bảo trì (Đỏ) */}
+                          {/* Badge Trạng thái thông minh theo Ngày chọn */}
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-extrabold border ${
-                              isAvailable
+                              isMaintenance
+                                ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                : freeSlotsCount === 3
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : isBooked
+                                : freeSlotsCount > 0
                                 ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                : 'bg-rose-100 text-rose-800 border-rose-300'
+                                : 'bg-slate-200 text-slate-700 border-slate-300'
                             }`}
                           >
-                            {isAvailable ? '🟢 Trống' : isBooked ? '🟡 Đã đặt' : '🔴 Đang bảo trì'}
+                            {isMaintenance
+                              ? '🔴 Đang bảo trì'
+                              : freeSlotsCount === 3
+                              ? '🟢 Trống cả ngày (3/3 ca)'
+                              : freeSlotsCount > 0
+                              ? `🟡 Còn ${freeSlotsCount}/3 ca trống`
+                              : '🔒 Hết ca trống (Full)'}
                           </span>
 
                           <div className="flex items-center gap-1.5">
@@ -856,23 +862,23 @@ export default function RoomsPage() {
                             {/* Nút hành động "Đặt phòng này" */}
                             <button
                               type="button"
-                              disabled={!isAvailable}
+                              disabled={isRoomFull}
                               onClick={() => handleSelectRoomToBook(room)}
                               className={`rounded-xl px-3.5 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer ${
                                 isSelectedForBooking
                                   ? 'bg-emerald-600 text-white shadow-emerald-500/20'
-                                  : isAvailable
+                                  : !isRoomFull
                                   ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20'
                                   : 'bg-slate-200 text-slate-400 cursor-not-allowed border-none'
                               }`}
                             >
                               {isSelectedForBooking
                                 ? '✓ Đang chọn'
-                                : isAvailable
+                                : !isRoomFull
                                 ? 'Đặt phòng này'
-                                : isBooked
-                                ? 'Đã đặt'
-                                : 'Bảo trì'}
+                                : isMaintenance
+                                ? 'Bảo trì'
+                                : 'Kín phòng'}
                             </button>
 
                             {/* Quyền Quản trị viên: Sửa và Xóa (Bấm xóa hiện Popup Modal CÓ / KHÔNG) */}
@@ -974,16 +980,31 @@ export default function RoomsPage() {
                 >
                   <option value="">-- Chọn phòng học từ danh sách --</option>
                   {rooms.map((room) => {
-                    const isAvailable = room.status === 'available';
+                    const targetDate = bookingForm.bookingDate || todayStr;
+                    const isMaintenance = room.status === 'maintenance';
+                    const occupiedSlots = bookings.filter(
+                      (b) => b.roomId === room.id && b.bookingDate === targetDate && b.status !== 'rejected'
+                    );
+                    const isFullDay = occupiedSlots.some((b) => b.timeSlot === 'Cả ngày (7h-17h)');
+                    const occCount = isFullDay ? 3 : Math.min(3, occupiedSlots.length);
+                    const freeCount = Math.max(0, 3 - occCount);
+                    const isDisabled = isMaintenance || occCount >= 3;
+
                     return (
                       <option
                         key={room.id}
                         value={room.id}
-                        disabled={!isAvailable}
-                        className={!isAvailable ? 'text-slate-400 bg-slate-100' : 'text-slate-900'}
+                        disabled={isDisabled}
+                        className={isDisabled ? 'text-slate-400 bg-slate-100' : 'text-slate-900 font-bold'}
                       >
                         {room.name} ({room.building} - {room.capacity} người){' '}
-                        {room.status === 'booked' ? '[Đã đặt]' : room.status === 'maintenance' ? '[Bảo trì]' : ''}
+                        {isMaintenance
+                          ? '[🔴 Bảo trì]'
+                          : freeCount === 3
+                          ? '[🟢 Trống cả ngày]'
+                          : freeCount > 0
+                          ? `[🟡 Còn ${freeCount}/3 ca]`
+                          : '[🔒 Kín phòng]'}
                       </option>
                     );
                   })}
